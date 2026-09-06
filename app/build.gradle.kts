@@ -5,7 +5,8 @@ plugins {
 }
 
 android {
-    namespace = "gt.uvg.lessons"
+    namespace = "com.example.laboratorio.lab09.aviones"
+
     compileSdk {
         version = release(37) {
             minorApiLevel = 1
@@ -13,7 +14,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "gt.uvg.lessons"
+        applicationId = "com.example.laboratorio.lab09.aviones"
         minSdk = 32
         targetSdk = 36
         versionCode = 1
@@ -49,7 +50,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
-    implementation(libs.kotlinx.serialization.core)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     testImplementation(libs.junit)
