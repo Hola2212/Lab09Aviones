@@ -16,6 +16,7 @@ import com.example.laboratorio.lab09.aviones.ui.screens.ProfileScreen
 import com.example.laboratorio.lab09.aviones.ui.viewmodel.StoreViewModel
 import kotlinx.serialization.Serializable
 
+@Serializable
 sealed interface StoreNavKey: NavKey {
     @Serializable
     data object Catalog : StoreNavKey
