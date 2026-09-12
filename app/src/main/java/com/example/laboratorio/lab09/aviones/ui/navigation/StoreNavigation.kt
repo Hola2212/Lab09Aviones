@@ -1,6 +1,9 @@
 package com.example.laboratorio.lab09.aviones.ui.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -39,11 +42,28 @@ fun StoreNavigation(
     NavDisplay(
         backStack = backStack,
         modifier = modifier,
+        transitionSpec = {
+            // Detalle/Perfil entran deslizándose desde la derecha.
+            slideInHorizontally(initialOffsetX = { it }) togetherWith
+                    slideOutHorizontally(targetOffsetX = { -it })
+        },
+        popTransitionSpec = {
+            // Al regresar, salen hacia la derecha y el catálogo reaparece desde la izquierda.
+            slideInHorizontally(initialOffsetX = { -it }) togetherWith
+                    slideOutHorizontally(targetOffsetX = { it })
+        },
+        predictivePopTransitionSpec = {
+            slideInHorizontally(initialOffsetX = { -it }) togetherWith
+                    slideOutHorizontally(targetOffsetX = { it })
+        },
         entryProvider = entryProvider {
             entry<StoreNavKey.Catalog> {
                 CatalogScreen(
-                    books = uiState.books,
+                    books = uiState.filteredBooks,
+                    totalCount = uiState.books.size,
                     favoriteBookIds = uiState.favoriteBookIds,
+                    searchQuery = uiState.searchQuery,
+                    onQueryChange = viewModel::onQueryChange,
                     onBookClick = { bookId -> backStack.add(StoreNavKey.Detail(bookId)) },
                     onToggleFavorite = viewModel::changeFavorite
                 )

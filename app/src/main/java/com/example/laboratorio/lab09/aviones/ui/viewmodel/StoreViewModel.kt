@@ -33,4 +33,8 @@ class StoreViewModel: ViewModel(){
             currentState.copy(favoriteBookIds = newFavorites)
         }
     }
+
+    fun onQueryChange(query: String) {
+        _uistate.update { it.copy(searchQuery = query) }
+    }
 }

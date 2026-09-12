@@ -14,6 +14,7 @@ fun ScreenScaffold(
     title: String,
     modifier: Modifier = Modifier,
     navigationIcon: @Composable () -> Unit = {},
+    floatingActionButton: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(
@@ -24,6 +25,7 @@ fun ScreenScaffold(
                 navigationIcon = navigationIcon
             )
         },
+        floatingActionButton = floatingActionButton,
         content = content
     )
 }
