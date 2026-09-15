@@ -37,9 +37,6 @@ import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
 import kotlinx.coroutines.launch
 import com.example.laboratorio.lab09.aviones.model.formatQuetzales
 import android.util.Log
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.DisposableEffect
 /**
  * Pantalla de Catálogo — puramente presentacional (Paso 3).
@@ -125,37 +122,22 @@ fun CatalogScreen(
                 }
             } else {
 
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 8.dp,
-                            bottom = 96.dp
-                        ),
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    state = gridState,
+                    contentPadding = PaddingValues(
+                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    books.chunked(2).forEach { rowBooks ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            rowBooks.forEach { book ->
-                                BookCatalogItem(
-                                    book = book,
-                                    isFavorite = favoriteBookIds.contains(book.id),
-                                    onClick = { onBookClick(book.id) },
-                                    onToggleFavorite = { onToggleFavorite(book.id) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            if (rowBooks.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
+                    items(books, key = { it.id }) { book ->
+                        BookCatalogItem(
+                            book = book,
+                            isFavorite = favoriteBookIds.contains(book.id),
+                            onClick = { onBookClick(book.id) },
+                            onToggleFavorite = { onToggleFavorite(book.id) }
+                        )
                     }
                 }
             }
@@ -172,10 +154,10 @@ private fun BookCatalogItem(
     modifier: Modifier=Modifier
 ) {
     DisposableEffect(book.id) {
-        Log.d("CatalogProbe", "Entrada de id=${book.id}")
+        Log.d("CatalogProbe", "ENTER id=${book.id}")
 
         onDispose {
-            Log.d("CatalogProbe", "Salida de id=${book.id}")
+            Log.d("CatalogProbe", "EXIT id=${book.id}")
         }
     }
     Card(
