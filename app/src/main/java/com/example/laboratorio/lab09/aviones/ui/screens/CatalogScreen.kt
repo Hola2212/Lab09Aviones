@@ -35,7 +35,12 @@ import androidx.compose.ui.unit.dp
 import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
 import kotlinx.coroutines.launch
-
+import com.example.laboratorio.lab09.aviones.model.formatQuetzales
+import android.util.Log
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.DisposableEffect
 /**
  * Pantalla de Catálogo — puramente presentacional (Paso 3).
  *
@@ -119,22 +124,38 @@ fun CatalogScreen(
                     }
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    state = gridState,
-                    contentPadding = PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
-                    ),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 8.dp,
+                            bottom = 96.dp
+                        ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(books, key = { it.id }) { book ->
-                        BookCatalogItem(
-                            book = book,
-                            isFavorite = favoriteBookIds.contains(book.id),
-                            onClick = { onBookClick(book.id) },
-                            onToggleFavorite = { onToggleFavorite(book.id) }
-                        )
+                    books.chunked(2).forEach { rowBooks ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            rowBooks.forEach { book ->
+                                BookCatalogItem(
+                                    book = book,
+                                    isFavorite = favoriteBookIds.contains(book.id),
+                                    onClick = { onBookClick(book.id) },
+                                    onToggleFavorite = { onToggleFavorite(book.id) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            if (rowBooks.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
             }
@@ -147,11 +168,19 @@ private fun BookCatalogItem(
     book: Book,
     isFavorite: Boolean,
     onClick: () -> Unit,
-    onToggleFavorite: () -> Unit
+    onToggleFavorite: () -> Unit,
+    modifier: Modifier=Modifier
 ) {
+    DisposableEffect(book.id) {
+        Log.d("CatalogProbe", "Entrada de id=${book.id}")
+
+        onDispose {
+            Log.d("CatalogProbe", "Salida de id=${book.id}")
+        }
+    }
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier
     ) {
         Row(
             modifier = Modifier
@@ -162,7 +191,10 @@ private fun BookCatalogItem(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(book.name, style = MaterialTheme.typography.titleMedium)
-                Text("Q${book.price}", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text=formatQuetzales(book.priceCents),
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
             IconButton(onClick = onToggleFavorite) {
                 Icon(

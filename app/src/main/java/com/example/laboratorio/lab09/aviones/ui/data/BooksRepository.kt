@@ -9,21 +9,27 @@ object BooksRepository {
             id = "book1",
             name = "Cien años de soledad",
             description = "La historia de la familia Buendía a través de varias generaciones en el pueblo ficticio de Macondo.",
-            price = 149.99,
+            priceCents = 14999,
+            stock = 3,
+            imageUrl = "https://picsum.photos/seed/book1/400/400",
             profileId = "author1"
         ),
         Book(
             id = "book2",
             name = "El principito",
             description = "Un relato sobre la amistad, el amor y la importancia de observar más allá de las apariencias.",
-            price = 89.99,
+            priceCents = 8999,
+            stock = 8,
+            imageUrl = "https://picsum.photos/seed/book2/400/400" ,
             profileId = "author2"
         ),
         Book(
             id = "book3",
             name = "Orgullo y prejuicio",
             description = "Una novela sobre relaciones, primeras impresiones y diferencias sociales en la Inglaterra del siglo XIX.",
-            price = 124.99,
+            priceCents = 12499,
+            stock = 0,
+            imageUrl = "https://picsum.photos/seed/book3/400/400",
             profileId = "author3"
         )
     )

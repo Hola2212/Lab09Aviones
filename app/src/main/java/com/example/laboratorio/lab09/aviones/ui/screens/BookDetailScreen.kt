@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.model.Profile
+import com.example.laboratorio.lab09.aviones.model.formatQuetzales
 import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
 
 /**
@@ -82,7 +83,10 @@ fun BookDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(book.name, style = MaterialTheme.typography.headlineSmall)
-            Text("Q${book.price}", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text=formatQuetzales(book.priceCents),
+                style = MaterialTheme.typography.bodyMedium
+            )
             Text(book.description, style = MaterialTheme.typography.bodyMedium)
 
             Row(verticalAlignment = Alignment.CenterVertically) {
