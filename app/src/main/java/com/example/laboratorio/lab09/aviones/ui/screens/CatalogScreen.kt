@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Favorite
@@ -39,6 +39,7 @@ import com.example.laboratorio.lab09.aviones.model.formatQuetzales
 import android.util.Log
 import androidx.compose.runtime.DisposableEffect
 import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
+import androidx.compose.material3.TextButton
 /**
  * Pantalla de Catálogo — puramente presentacional (Paso 3).
  *
@@ -54,13 +55,20 @@ fun CatalogScreen(
     totalCount: Int,
     favoriteBookIds: Set<String>,
     searchQuery: String,
+    gridState: LazyGridState,
     onQueryChange: (String) -> Unit,
     onBookClick: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
+    val handleQueryChange: (String) -> Unit = { newQuery ->
+        onQueryChange(newQuery)
+        scope.launch {
+            gridState.scrollToItem(0)
+        }
+    }
+
     val showScrollToTop by remember { derivedStateOf { gridState.firstVisibleItemIndex > 2 } }
 
     ScreenScaffold(
@@ -86,11 +94,11 @@ fun CatalogScreen(
         ) {
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = onQueryChange,
+                onValueChange = handleQueryChange,
                 label = { Text("Buscar productos") },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChange("") }) {
+                        IconButton(onClick = { handleQueryChange("") }) {
                             Icon(Icons.Filled.Clear, contentDescription = "Limpiar búsqueda")
                         }
                     }
@@ -116,7 +124,7 @@ fun CatalogScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("No encontramos productos.")
-                        IconButton(onClick = { onQueryChange("") }) {
+                        TextButton(onClick = { handleQueryChange("") }) {
                             Text("Limpiar búsqueda")
                         }
                     }

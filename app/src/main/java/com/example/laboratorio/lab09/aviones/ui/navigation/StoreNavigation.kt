@@ -18,6 +18,7 @@ import com.example.laboratorio.lab09.aviones.ui.screens.CatalogScreen
 import com.example.laboratorio.lab09.aviones.ui.screens.ProfileScreen
 import com.example.laboratorio.lab09.aviones.ui.viewmodel.StoreViewModel
 import kotlinx.serialization.Serializable
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 
 @Serializable
 sealed interface StoreNavKey: NavKey {
@@ -36,6 +37,7 @@ fun StoreNavigation(
 ){
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
+    val catalogGridState = rememberLazyGridState()
 
     BackHandler(enabled = backStack.size > 1) { backStack.removeLastOrNull() }
 
@@ -63,6 +65,7 @@ fun StoreNavigation(
                     totalCount = uiState.books.size,
                     favoriteBookIds = uiState.favoriteBookIds,
                     searchQuery = uiState.searchQuery,
+                    gridState = catalogGridState,
                     onQueryChange = viewModel::onQueryChange,
                     onBookClick = { bookId -> backStack.add(StoreNavKey.Detail(bookId)) },
                     onToggleFavorite = viewModel::changeFavorite
