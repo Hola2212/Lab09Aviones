@@ -30,6 +30,8 @@ import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.model.Profile
 import com.example.laboratorio.lab09.aviones.model.formatQuetzales
 import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
+import androidx.compose.foundation.layout.fillMaxWidth
+import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
 
 /**
  * Pantalla de Detalle — puramente presentacional (Paso 3).
@@ -82,6 +84,11 @@ fun BookDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            ProductImage(
+                imageUrl = book.imageUrl,
+                contentDescription = "Portada de ${book.name}",
+                modifier = Modifier.fillMaxWidth()
+            )
             Text(book.name, style = MaterialTheme.typography.headlineSmall)
             Text(
                 text=formatQuetzales(book.priceCents),

@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 import com.example.laboratorio.lab09.aviones.model.formatQuetzales
 import android.util.Log
 import androidx.compose.runtime.DisposableEffect
+import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
 /**
  * Pantalla de Catálogo — puramente presentacional (Paso 3).
  *
@@ -136,7 +137,8 @@ fun CatalogScreen(
                             book = book,
                             isFavorite = favoriteBookIds.contains(book.id),
                             onClick = { onBookClick(book.id) },
-                            onToggleFavorite = { onToggleFavorite(book.id) }
+                            onToggleFavorite = { onToggleFavorite(book.id) },
+                            modifier= Modifier.fillMaxWidth()
                         )
                     }
                 }
@@ -164,26 +166,47 @@ private fun BookCatalogItem(
         onClick = onClick,
         modifier = modifier
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(book.name, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text=formatQuetzales(book.priceCents),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-            IconButton(onClick = onToggleFavorite) {
-                Icon(
-                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = if (isFavorite) "Quitar de favoritos" else "Agregar a favoritos"
-                )
+        Column {
+            ProductImage(
+                imageUrl = book.imageUrl,
+                contentDescription = "Portada de ${book.name}",
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = book.name,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = formatQuetzales(book.priceCents),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                IconButton(onClick = onToggleFavorite) {
+                    Icon(
+                        imageVector = if (isFavorite) {
+                            Icons.Filled.Favorite
+                        } else {
+                            Icons.Filled.FavoriteBorder
+                        },
+                        contentDescription = if (isFavorite) {
+                            "Quitar de favoritos"
+                        } else {
+                            "Agregar a favoritos"
+                        }
+                    )
+                }
             }
         }
+
     }
 }
