@@ -49,8 +49,10 @@ fun BookDetailScreen(
     book: Book?,
     profile: Profile?,
     isFavorite: Boolean,
+    currentUnitsInOrder: Int = 0,
     onToggleFavorite: () -> Unit,
     onOpenProfile: () -> Unit,
+    onAddToOrder: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -114,6 +116,24 @@ fun BookDetailScreen(
                     text = "Ficha técnica: edición estándar, disponible para entrega inmediata.",
                     style = MaterialTheme.typography.bodySmall
                 )
+            }
+            // Muestra las existencias y cuántas unidades hay en el pedido
+            Text(
+                text = "${book.stock} disponibles · ${currentUnitsInOrder} en el pedido",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+            val availableStock = book.stock - currentUnitsInOrder
+
+            // Botón para agregar al pedido
+            Button(
+                onClick = { onAddToOrder(book.id) },
+                enabled = availableStock > 0,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Text(if (availableStock > 0) "Agregar al pedido" else "Agotado / Límite alcanzado")
             }
 
             HorizontalDivider()

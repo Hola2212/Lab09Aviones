@@ -19,9 +19,14 @@ import com.example.laboratorio.lab09.aviones.ui.screens.ProfileScreen
 import com.example.laboratorio.lab09.aviones.ui.viewmodel.StoreViewModel
 import kotlinx.serialization.Serializable
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import com.example.laboratorio.lab09.aviones.ui.screens.OrderScreen
+import com.example.laboratorio.lab09.aviones.ui.screens.OrderLine
 
 @Serializable
 sealed interface StoreNavKey: NavKey {
+
+    @Serializable
+    data object Order : StoreNavKey
     @Serializable
     data object Catalog : StoreNavKey
     @Serializable
@@ -68,7 +73,8 @@ fun StoreNavigation(
                     gridState = catalogGridState,
                     onQueryChange = viewModel::onQueryChange,
                     onBookClick = { bookId -> backStack.add(StoreNavKey.Detail(bookId)) },
-                    onToggleFavorite = viewModel::changeFavorite
+                    onToggleFavorite = viewModel::changeFavorite,
+                    onOpenOrder = { backStack.add(StoreNavKey.Order) }
                 )
             }
 
@@ -77,12 +83,16 @@ fun StoreNavigation(
                 val profile = book?.let { current ->
                     uiState.profiles.firstOrNull { it.id == current.profileId}
                 }
+                val currentUnits = key.bookId.let { id -> uiState.orderLines[id] } ?: 0
+
                 BookDetailScreen(
                     book = book,
                     profile = profile,
                     isFavorite = (book != null && uiState.favoriteBookIds.contains(book.id)),
+                    currentUnitsInOrder = currentUnits,
                     onToggleFavorite = { book?.let {viewModel.changeFavorite(it.id)}},
                     onOpenProfile = { profile?.let { backStack.add(StoreNavKey.Profile(it.id)) } },
+                    onAddToOrder = { bookId -> viewModel.addBookToOrder(bookId) },
                     onBack = { backStack.removeLastOrNull() }
                 )
             }
@@ -92,6 +102,28 @@ fun StoreNavigation(
                 ProfileScreen(
                     profile = profile,
                     onBack = { backStack.removeLastOrNull() }
+                )
+            }
+            entry<StoreNavKey.Order> {
+                val linesList = uiState.orderLines.mapNotNull { (bookId, quantity) ->
+                    val book = uiState.books.firstOrNull { it.id == bookId }
+                    if (book != null && quantity > 0) {
+                        OrderLine(book = book, quantity = quantity)
+                    } else null
+                }
+
+                val calculatedTotal = linesList.sumOf { line ->
+                    (line.book.priceCents / 100.0) * line.quantity
+                }
+
+                OrderScreen(
+                    orderLines = linesList,
+                    totalAmount = calculatedTotal,
+                    orderMessage = null,
+                    onIncreaseQuantity = { book -> viewModel.addBookToOrder(book.id) },
+                    onDecreaseQuantity = { book -> viewModel.decreaseOrderQuantity(book.id) }, // <-- CONECTADO
+                    onRemoveLine = { book -> viewModel.removeBookFromOrder(book.id) },       // <-- CONECTADO
+                    onBackClick = { backStack.removeLastOrNull() }
                 )
             }
         }

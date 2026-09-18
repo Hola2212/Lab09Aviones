@@ -59,7 +59,8 @@ fun CatalogScreen(
     onQueryChange: (String) -> Unit,
     onBookClick: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenOrder: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val handleQueryChange: (String) -> Unit = { newQuery ->
@@ -92,6 +93,16 @@ fun CatalogScreen(
                 .padding(padding)
                 .fillMaxSize()
         ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onOpenOrder) {
+                    Text("Ver mi pedido")
+                }
+            }
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = handleQueryChange,

@@ -7,7 +7,8 @@ data class StoreUiState(
     val books: List<Book> = emptyList(),
     val profiles: List<Profile> = emptyList(),
     val favoriteBookIds: Set<String> = emptySet(),
-    val searchQuery: String = ""
+    val searchQuery: String = "",
+    val orderLines: Map<String, Int> = emptyMap()
 ){
     val filteredBooks: List<Book> get() = filterBooksByQuery(books, searchQuery)
 }

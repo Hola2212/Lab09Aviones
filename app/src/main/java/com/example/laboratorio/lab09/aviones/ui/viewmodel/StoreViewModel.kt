@@ -120,6 +120,44 @@ class StoreViewModel: ViewModel(){
             currentState.copy(favoriteBookIds = newFavorites)
         }
     }
+    fun addBookToOrder(bookId: String) {
+        _uiState.update { current ->
+            val targetBook = current.books.firstOrNull { it.id == bookId } ?: return@update current
+            val currentCount = current.orderLines[bookId] ?: 0
+
+            if (currentCount < targetBook.stock) {
+                val updatedMap = current.orderLines.toMutableMap()
+                updatedMap[bookId] = currentCount + 1
+                current.copy(orderLines  = updatedMap)
+            } else {
+                current
+            }
+        }
+    }
+    // Disminuye la cantidad en 1 unidad o elimina la línea si llega a 0
+    fun decreaseOrderQuantity(bookId: String) {
+        _uiState.update { currentState ->
+            val currentQty = currentState.orderLines[bookId] ?: 0
+            val updatedLines = currentState.orderLines.toMutableMap()
+
+            if (currentQty > 1) {
+                updatedLines[bookId] = currentQty - 1
+            } else {
+                updatedLines.remove(bookId)
+            }
+
+            currentState.copy(orderLines = updatedLines)
+        }
+    }
+
+    // Elimina completamente la línea del pedido sin importar la cantidad
+    fun removeBookFromOrder(bookId: String) {
+        _uiState.update { currentState ->
+            val updatedLines = currentState.orderLines.toMutableMap()
+            updatedLines.remove(bookId)
+            currentState.copy(orderLines = updatedLines)
+        }
+    }
 
     fun onQueryChange(query: String) {
         _uiState.update { it.copy(searchQuery = query) }

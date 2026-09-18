@@ -29,7 +29,8 @@ fun CatalogScreenPreview() {
             onQueryChange = {},
             onBookClick = {},
             onToggleFavorite = { id ->
-                favorites = if (id in favorites) favorites - id else favorites + id }
+                favorites = if (id in favorites) favorites - id else favorites + id },
+            onOpenOrder = {}
         )
     }
 }
@@ -43,8 +44,10 @@ fun BookDetailScreenPreview() {
             book = fakeBook,
             profile = fakeProfile,
             isFavorite = isFav,
+            currentUnitsInOrder = 0,
             onToggleFavorite = { isFav = !isFav },
             onOpenProfile = {},
+            onAddToOrder = {},
             onBack = {}
         )
     }
