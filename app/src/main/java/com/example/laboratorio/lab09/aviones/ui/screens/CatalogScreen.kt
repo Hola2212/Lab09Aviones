@@ -53,6 +53,7 @@ import androidx.compose.material3.TextButton
 fun CatalogScreen(
     books: List<Book>,
     totalCount: Int,
+    orderUnits: Int,
     favoriteBookIds: Set<String>,
     searchQuery: String,
     gridState: LazyGridState,
@@ -97,10 +98,11 @@ fun CatalogScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = onOpenOrder) {
-                    Text("Ver mi pedido")
+                    Text(if (orderUnits > 0) "Pedido · $orderUnits" else "Ver mi pedido")
                 }
             }
             OutlinedTextField(
@@ -166,6 +168,11 @@ fun CatalogScreen(
     }
 }
 
+// Registro de composición usado solo para el Paso 2 (comparación Column vs LazyVerticalGrid).
+// Se deja el mecanismo en el código como evidencia, pero desactivado: la guía pide
+// retirar o desactivar estos logs una vez capturadas las observaciones de Logcat.
+private const val ENABLE_CATALOG_PROBE_LOGGING = false
+
 @Composable
 private fun BookCatalogItem(
     book: Book,
@@ -175,10 +182,14 @@ private fun BookCatalogItem(
     modifier: Modifier=Modifier
 ) {
     DisposableEffect(book.id) {
-        Log.d("CatalogProbe", "ENTER id=${book.id}")
+        if (ENABLE_CATALOG_PROBE_LOGGING) {
+            Log.d("CatalogProbe", "ENTER id=${book.id}")
+        }
 
         onDispose {
-            Log.d("CatalogProbe", "EXIT id=${book.id}")
+            if (ENABLE_CATALOG_PROBE_LOGGING) {
+                Log.d("CatalogProbe", "EXIT id=${book.id}")
+            }
         }
     }
     Card(
@@ -207,6 +218,15 @@ private fun BookCatalogItem(
                     Text(
                         text = formatQuetzales(book.priceCents),
                         style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = if (book.stock > 0) "${book.stock} disponibles" else "Agotado",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (book.stock > 0) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        }
                     )
                 }
 

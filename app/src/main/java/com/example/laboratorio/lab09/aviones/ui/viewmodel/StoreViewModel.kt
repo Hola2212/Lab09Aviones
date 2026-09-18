@@ -2,6 +2,10 @@ package com.example.laboratorio.lab09.aviones.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import com.example.laboratorio.lab09.aviones.model.Book
+import com.example.laboratorio.lab09.aviones.model.OrderUpdateResult
+import com.example.laboratorio.lab09.aviones.model.addToOrder
+import com.example.laboratorio.lab09.aviones.model.decreaseOrderQuantity as applyDecrease
+import com.example.laboratorio.lab09.aviones.model.removeFromOrder
 import com.example.laboratorio.lab09.aviones.ui.data.BooksRepository
 import com.example.laboratorio.lab09.aviones.ui.state.StoreUiState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlin.random.Random
-import kotlin.random.nextInt
 
 // En este código usamos chatGPT con el fin de poder colocar descripción de los libros y generar los titulos y los subjects
 //Autor: Abigail Escobar
@@ -120,43 +123,42 @@ class StoreViewModel: ViewModel(){
             currentState.copy(favoriteBookIds = newFavorites)
         }
     }
-    fun addBookToOrder(bookId: String) {
+
+    fun addBookToOrder(bookId: String, increment: Int = 1) {
         _uiState.update { current ->
-            val targetBook = current.books.firstOrNull { it.id == bookId } ?: return@update current
-            val currentCount = current.orderLines[bookId] ?: 0
-
-            if (currentCount < targetBook.stock) {
-                val updatedMap = current.orderLines.toMutableMap()
-                updatedMap[bookId] = currentCount + 1
-                current.copy(orderLines  = updatedMap)
-            } else {
-                current
+            when (val result = addToOrder(current.books, current.orderLines, bookId, increment)) {
+                is OrderUpdateResult.Success -> current.copy(
+                    orderLines = result.updatedOrder,
+                    orderError = null,
+                    orderConfirmation = "Se agregó $increment unidad(es) al pedido."
+                )
+                is OrderUpdateResult.Rejected -> current.copy(
+                    orderError = result.reason,
+                    orderConfirmation = null
+                )
             }
         }
     }
-    // Disminuye la cantidad en 1 unidad o elimina la línea si llega a 0
     fun decreaseOrderQuantity(bookId: String) {
-        _uiState.update { currentState ->
-            val currentQty = currentState.orderLines[bookId] ?: 0
-            val updatedLines = currentState.orderLines.toMutableMap()
-
-            if (currentQty > 1) {
-                updatedLines[bookId] = currentQty - 1
-            } else {
-                updatedLines.remove(bookId)
-            }
-
-            currentState.copy(orderLines = updatedLines)
+        _uiState.update { current ->
+            current.copy(
+                orderLines = applyDecrease(current.orderLines, bookId),
+                orderError = null,
+                orderConfirmation = null
+            )
         }
     }
-
-    // Elimina completamente la línea del pedido sin importar la cantidad
     fun removeBookFromOrder(bookId: String) {
-        _uiState.update { currentState ->
-            val updatedLines = currentState.orderLines.toMutableMap()
-            updatedLines.remove(bookId)
-            currentState.copy(orderLines = updatedLines)
+        _uiState.update { current ->
+            current.copy(
+                orderLines = removeFromOrder(current.orderLines, bookId),
+                orderError = null,
+                orderConfirmation = null
+            )
         }
+    }
+    fun clearOrderFeedback() {
+        _uiState.update { it.copy(orderError = null, orderConfirmation = null) }
     }
 
     fun onQueryChange(query: String) {

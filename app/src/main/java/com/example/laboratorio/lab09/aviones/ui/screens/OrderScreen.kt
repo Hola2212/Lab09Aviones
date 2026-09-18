@@ -11,10 +11,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.laboratorio.lab09.aviones.model.Book
+import com.example.laboratorio.lab09.aviones.model.calculateLineSubtotalCents
+import com.example.laboratorio.lab09.aviones.model.formatQuetzales
 
-data class OrderLine(
+// Modelo de presentación de esta pantalla (libro ya resuelto + cantidad).
+// El estado de negocio real vive en model.OrderLine (bookId + quantity) dentro del ViewModel.
+data class OrderLineDisplay(
     val book: Book,
     val quantity: Int
 )
@@ -22,9 +28,9 @@ data class OrderLine(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrderScreen(
-    orderLines: List<OrderLine>,
-    totalAmount: Double,
-    orderMessage: String?,
+    orderLines: List<OrderLineDisplay>,
+    totalCents: Int,
+    orderError: String?,
     onIncreaseQuantity: (Book) -> Unit,
     onDecreaseQuantity: (Book) -> Unit,
     onRemoveLine: (Book) -> Unit,
@@ -60,7 +66,7 @@ fun OrderScreen(
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
-                            text = "Q${String.format("%.2f", totalAmount)}",
+                            text = formatQuetzales(totalCents),
                             style = MaterialTheme.typography.headlineSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -75,7 +81,7 @@ fun OrderScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            orderMessage?.let { msg ->
+            orderError?.let { msg ->
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
                     modifier = Modifier.fillMaxWidth()
@@ -127,14 +133,12 @@ fun OrderScreen(
 
 @Composable
 fun OrderLineItem(
-    line: OrderLine,
+    line: OrderLineDisplay,
     onIncrease: () -> Unit,
     onDecrease: () -> Unit,
     onRemove: () -> Unit
 ) {
-    // Convertimos de centavos a Quetzales
-    val unitPrice = line.book.priceCents / 100.0
-    val subtotal = unitPrice * line.quantity
+    val subtotalCents = calculateLineSubtotalCents(line.book, line.quantity)
 
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -151,7 +155,7 @@ fun OrderLineItem(
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = "Q${String.format("%.2f", unitPrice)} por unidad",
+                        text = "${formatQuetzales(line.book.priceCents)} por unidad",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -171,7 +175,12 @@ fun OrderLineItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDecrease, modifier = Modifier.size(48.dp)) {
+                    IconButton(
+                        onClick = onDecrease,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .semantics { contentDescription = "Disminuir cantidad" }
+                    ) {
                         Text(
                             text = "-",
                             style = MaterialTheme.typography.headlineMedium
@@ -188,7 +197,7 @@ fun OrderLineItem(
                 }
 
                 Text(
-                    text = "Subtotal Q${String.format("%.2f", subtotal)}",
+                    text = "Subtotal ${formatQuetzales(subtotalCents)}",
                     style = MaterialTheme.typography.bodyLarge
                 )
             }

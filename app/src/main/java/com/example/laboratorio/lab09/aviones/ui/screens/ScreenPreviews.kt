@@ -23,6 +23,7 @@ fun CatalogScreenPreview() {
         CatalogScreen(
             books = listOf(fakeBook, fakeBook.copy(id = "b2", name = "Producto 2"), fakeBook.copy(id = "b3", name = "Producto 3")),
             totalCount = 3,
+            orderUnits = 0,
             favoriteBookIds = favorites,
             searchQuery = "",
             gridState = gridState,

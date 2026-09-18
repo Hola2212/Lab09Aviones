@@ -50,6 +50,8 @@ fun BookDetailScreen(
     profile: Profile?,
     isFavorite: Boolean,
     currentUnitsInOrder: Int = 0,
+    orderConfirmation: String? = null,
+    orderError: String? = null,
     onToggleFavorite: () -> Unit,
     onOpenProfile: () -> Unit,
     onAddToOrder: (String) -> Unit,
@@ -134,6 +136,21 @@ fun BookDetailScreen(
                     .padding(vertical = 8.dp)
             ) {
                 Text(if (availableStock > 0) "Agregar al pedido" else "Agotado / Límite alcanzado")
+            }
+
+            orderConfirmation?.let { msg ->
+                Text(
+                    text = msg,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            orderError?.let { msg ->
+                Text(
+                    text = msg,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
 
             HorizontalDivider()
