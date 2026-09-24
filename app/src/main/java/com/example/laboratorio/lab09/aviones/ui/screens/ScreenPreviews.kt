@@ -9,8 +9,9 @@ import androidx.compose.runtime.Composable
 import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.model.Profile
 import com.example.laboratorio.lab09.aviones.ui.theme.Lab09AvionesTheme
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 
-private val fakeBook = Book(id = "b1", name = "Producto de prueba", description = "Descripción larga de prueba", price = 99.0, profileId = "p1")
+private val fakeBook = Book(id = "b1", name = "Producto de prueba", description = "Descripción larga de prueba", priceCents = 9900, stock=10, imageUrl = "https://picsum.photos/seed/preview/400/400", profileId = "p1")
 private val fakeProfile = Profile(id = "p1", name = "Perfil de prueba", role = "Rol", location = "Ubicación", description = "Bio de prueba")
 
 @Preview(showBackground = true)
@@ -18,11 +19,19 @@ private val fakeProfile = Profile(id = "p1", name = "Perfil de prueba", role = "
 fun CatalogScreenPreview() {
     var favorites by remember { mutableStateOf(setOf<String>()) }
     Lab09AvionesTheme {
+        val gridState = rememberLazyGridState()
         CatalogScreen(
             books = listOf(fakeBook, fakeBook.copy(id = "b2", name = "Producto 2"), fakeBook.copy(id = "b3", name = "Producto 3")),
+            totalCount = 3,
+            orderUnits = 0,
             favoriteBookIds = favorites,
+            searchQuery = "",
+            gridState = gridState,
+            onQueryChange = {},
             onBookClick = {},
-            onToggleFavorite = { id -> favorites = if (id in favorites) favorites - id else favorites + id }
+            onToggleFavorite = { id ->
+                favorites = if (id in favorites) favorites - id else favorites + id },
+            onOpenOrder = {}
         )
     }
 }
@@ -36,8 +45,10 @@ fun BookDetailScreenPreview() {
             book = fakeBook,
             profile = fakeProfile,
             isFavorite = isFav,
+            currentUnitsInOrder = 0,
             onToggleFavorite = { isFav = !isFav },
             onOpenProfile = {},
+            onAddToOrder = {},
             onBack = {}
         )
     }

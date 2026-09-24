@@ -1,28 +1,45 @@
 package com.example.laboratorio.lab09.aviones.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Card
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
-
+import kotlinx.coroutines.launch
+import com.example.laboratorio.lab09.aviones.model.formatQuetzales
+import android.util.Log
+import androidx.compose.runtime.DisposableEffect
+import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
+import androidx.compose.material3.TextButton
 /**
  * Pantalla de Catálogo — puramente presentacional (Paso 3).
  *
@@ -35,64 +52,200 @@ import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
 @Composable
 fun CatalogScreen(
     books: List<Book>,
+    totalCount: Int,
+    orderUnits: Int,
     favoriteBookIds: Set<String>,
+    searchQuery: String,
+    gridState: LazyGridState,
+    onQueryChange: (String) -> Unit,
     onBookClick: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenOrder: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+    val handleQueryChange: (String) -> Unit = { newQuery ->
+        onQueryChange(newQuery)
+        scope.launch {
+            gridState.scrollToItem(0)
+        }
+    }
+
+    val showScrollToTop by remember { derivedStateOf { gridState.firstVisibleItemIndex > 2 } }
+
     ScreenScaffold(
         title = "Catálogo",
-        modifier = modifier
-        // Sin navigationIcon: la pantalla raíz no lleva botón de retroceso.
+        modifier = modifier,
+        floatingActionButton = {
+            if (showScrollToTop) {
+                FloatingActionButton(
+                    onClick = { scope.launch { gridState.animateScrollToItem(0) } }
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowUp,
+                        contentDescription = "Volver arriba"
+                    )
+                }
+            }
+        }
     ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            books.forEach { book ->
-                BookCatalogItem(
-                    book = book,
-                    isFavorite = favoriteBookIds.contains(book.id),
-                    onClick = { onBookClick(book.id) },
-                    onToggleFavorite = { onToggleFavorite(book.id) }
-                )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onOpenOrder) {
+                    Text(if (orderUnits > 0) "Pedido · $orderUnits" else "Ver mi pedido")
+                }
+            }
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = handleQueryChange,
+                label = { Text("Buscar productos") },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { handleQueryChange("") }) {
+                            Icon(Icons.Filled.Clear, contentDescription = "Limpiar búsqueda")
+                        }
+                    }
+                },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
+            Text(
+                text = "${books.size} de $totalCount productos",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+
+            if (books.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("No encontramos productos.")
+                        TextButton(onClick = { handleQueryChange("") }) {
+                            Text("Limpiar búsqueda")
+                        }
+                    }
+                }
+            } else {
+
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    state = gridState,
+                    contentPadding = PaddingValues(
+                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(books, key = { it.id }) { book ->
+                        BookCatalogItem(
+                            book = book,
+                            isFavorite = favoriteBookIds.contains(book.id),
+                            onClick = { onBookClick(book.id) },
+                            onToggleFavorite = { onToggleFavorite(book.id) },
+                            modifier= Modifier.fillMaxWidth()
+                        )
+                    }
+                }
             }
         }
     }
 }
+
+// Registro de composición usado solo para el Paso 2 (comparación Column vs LazyVerticalGrid).
+// Se deja el mecanismo en el código como evidencia, pero desactivado: la guía pide
+// retirar o desactivar estos logs una vez capturadas las observaciones de Logcat.
+private const val ENABLE_CATALOG_PROBE_LOGGING = false
 
 @Composable
 private fun BookCatalogItem(
     book: Book,
     isFavorite: Boolean,
     onClick: () -> Unit,
-    onToggleFavorite: () -> Unit
+    onToggleFavorite: () -> Unit,
+    modifier: Modifier=Modifier
 ) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(book.name, style = MaterialTheme.typography.titleMedium)
-                Text("Q${book.price}", style = MaterialTheme.typography.bodyMedium)
-            }
-            IconButton(onClick = onToggleFavorite) {
-                Icon(
-                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = if (isFavorite) "Quitar de favoritos" else "Agregar a favoritos"
-                )
+    DisposableEffect(book.id) {
+        if (ENABLE_CATALOG_PROBE_LOGGING) {
+            Log.d("CatalogProbe", "ENTER id=${book.id}")
+        }
+
+        onDispose {
+            if (ENABLE_CATALOG_PROBE_LOGGING) {
+                Log.d("CatalogProbe", "EXIT id=${book.id}")
             }
         }
+    }
+    Card(
+        onClick = onClick,
+        modifier = modifier
+    ) {
+        Column {
+            ProductImage(
+                imageUrl = book.imageUrl,
+                contentDescription = "Portada de ${book.name}",
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = book.name,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = formatQuetzales(book.priceCents),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = if (book.stock > 0) "${book.stock} disponibles" else "Agotado",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (book.stock > 0) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        }
+                    )
+                }
+
+                IconButton(onClick = onToggleFavorite) {
+                    Icon(
+                        imageVector = if (isFavorite) {
+                            Icons.Filled.Favorite
+                        } else {
+                            Icons.Filled.FavoriteBorder
+                        },
+                        contentDescription = if (isFavorite) {
+                            "Quitar de favoritos"
+                        } else {
+                            "Agregar a favoritos"
+                        }
+                    )
+                }
+            }
+        }
+
     }
 }

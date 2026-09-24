@@ -28,7 +28,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.model.Profile
+import com.example.laboratorio.lab09.aviones.model.formatQuetzales
 import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
+import androidx.compose.foundation.layout.fillMaxWidth
+import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
 
 /**
  * Pantalla de Detalle — puramente presentacional (Paso 3).
@@ -46,8 +49,12 @@ fun BookDetailScreen(
     book: Book?,
     profile: Profile?,
     isFavorite: Boolean,
+    currentUnitsInOrder: Int = 0,
+    orderConfirmation: String? = null,
+    orderError: String? = null,
     onToggleFavorite: () -> Unit,
     onOpenProfile: () -> Unit,
+    onAddToOrder: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -81,8 +88,16 @@ fun BookDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            ProductImage(
+                imageUrl = book.imageUrl,
+                contentDescription = "Portada de ${book.name}",
+                modifier = Modifier.fillMaxWidth()
+            )
             Text(book.name, style = MaterialTheme.typography.headlineSmall)
-            Text("Q${book.price}", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text=formatQuetzales(book.priceCents),
+                style = MaterialTheme.typography.bodyMedium
+            )
             Text(book.description, style = MaterialTheme.typography.bodyMedium)
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -102,6 +117,39 @@ fun BookDetailScreen(
                 Text(
                     text = "Ficha técnica: edición estándar, disponible para entrega inmediata.",
                     style = MaterialTheme.typography.bodySmall
+                )
+            }
+            // Muestra las existencias y cuántas unidades hay en el pedido
+            Text(
+                text = "${book.stock} disponibles · ${currentUnitsInOrder} en el pedido",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+            val availableStock = book.stock - currentUnitsInOrder
+
+            // Botón para agregar al pedido
+            Button(
+                onClick = { onAddToOrder(book.id) },
+                enabled = availableStock > 0,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Text(if (availableStock > 0) "Agregar al pedido" else "Agotado / Límite alcanzado")
+            }
+
+            orderConfirmation?.let { msg ->
+                Text(
+                    text = msg,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            orderError?.let { msg ->
+                Text(
+                    text = msg,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
 
