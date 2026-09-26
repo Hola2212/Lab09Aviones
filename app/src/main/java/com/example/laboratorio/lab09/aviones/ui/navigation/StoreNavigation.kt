@@ -23,9 +23,19 @@ import kotlinx.serialization.Serializable
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import com.example.laboratorio.lab09.aviones.ui.screens.OrderScreen
 import com.example.laboratorio.lab09.aviones.ui.screens.OrderLineDisplay
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
+import com.example.laboratorio.lab09.aviones.ui.screens.ConfirmationScreen
+import com.example.laboratorio.lab09.aviones.ui.screens.CheckoutScreen
+
 
 @Serializable
 sealed interface StoreNavKey: NavKey {
+
+    @Serializable
+    data object Checkout : StoreNavKey
+    @Serializable
+    data object Confirmation : StoreNavKey
 
     @Serializable
     data object Order : StoreNavKey
@@ -43,6 +53,7 @@ fun StoreNavigation(
     viewModel: StoreViewModel = viewModel()
 ){
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val checkoutState by viewModel.checkoutUiState.collectAsStateWithLifecycle()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
     val catalogGridState = rememberLazyGridState()
 
@@ -130,9 +141,57 @@ fun StoreNavigation(
                     onIncreaseQuantity = { book -> viewModel.addBookToOrder(book.id) },
                     onDecreaseQuantity = { book -> viewModel.decreaseOrderQuantity(book.id) },
                     onRemoveLine = { book -> viewModel.removeBookFromOrder(book.id) },
+                    onCheckoutClick = { backStack.add(StoreNavKey.Checkout) },
                     onBackClick = { backStack.removeLastOrNull() }
                 )
             }
+
+            // PASO 3: Checkout
+            entry<StoreNavKey.Checkout> {
+                val totalUnits = remember(uiState.orderLines) {
+                    uiState.orderLines.sumOf { it.quantity }
+                }
+                val totalCents = remember(uiState.orderLines, uiState.books) {
+                    calculateOrderTotalCents(uiState.books, uiState.orderLines)
+                }
+
+                val confirmEnabled by remember(checkoutState, totalUnits) {
+                    derivedStateOf {
+                        checkoutState.isFormCorrect && totalUnits > 0
+                    }
+                }
+
+                CheckoutScreen(
+                    uiState = checkoutState,
+                    orderUnits = totalUnits,
+                    totalCents = totalCents,
+                    onNameChange = viewModel::onNameChange,
+                    onPhoneChange = viewModel::onPhoneChange,
+                    onBillingTypeChange = viewModel::onBillingTypeChange,
+                    onNitChange = viewModel::onNitChange,
+                    onFiscalNameChange = viewModel::onFiscalNameChange,
+                    onPayMethodChange = viewModel::onPayMethodChange,
+                    confirmEnabled = confirmEnabled,
+                    onConfirmClick = {
+                        viewModel.confirmOrder()
+                        backStack.add(StoreNavKey.Confirmation)
+                    },
+                    onBackClick = { backStack.removeLastOrNull() }
+                )
+            }
+
+            // PASO 4: Confirmacion y Recibo
+            entry<StoreNavKey.Confirmation> {
+                ConfirmationScreen(
+                    viewModel = viewModel,
+                    onReturnToCatalog = {
+                        while (backStack.size > 1) {
+                            backStack.removeLastOrNull()
+                        }
+                    }
+                )
+            }
+
         }
     )
 }

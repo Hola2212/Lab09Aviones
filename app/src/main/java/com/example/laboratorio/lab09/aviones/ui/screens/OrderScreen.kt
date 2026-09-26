@@ -35,6 +35,7 @@ fun OrderScreen(
     onDecreaseQuantity: (Book) -> Unit,
     onRemoveLine: (Book) -> Unit,
     onBackClick: () -> Unit,
+    onCheckoutClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -54,26 +55,40 @@ fun OrderScreen(
                     tonalElevation = 8.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(16.dp)
                     ) {
-                        Text(
-                            text = "Total",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = formatQuetzales(totalCents),
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Total",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = formatQuetzales(totalCents),
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(
+                            onClick = onCheckoutClick,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Continuar al checkout")
+                        }
                     }
                 }
             }
         },
+
         modifier = modifier
     ) { paddingValues ->
         Column(

@@ -168,7 +168,16 @@ fun CheckoutScreen(
                         placeholder = { Text("Ej. 45123") },
                         singleLine = true,
                         isError = uiState.nitTouched && uiState.nitError != null,
-                        supportingText = { if (uiState.nitTouched) uiState.nitError?.let { Text(it) } },
+                        supportingText = {
+                            if (uiState.nitTouched && uiState.nitError != null) {
+                                Text(
+                                    text = uiState.nitError!!,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            } else {
+                                Text("Mínimo 5 dígitos")
+                            }
+                        },
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Number,
                             imeAction = ImeAction.Next
@@ -187,7 +196,16 @@ fun CheckoutScreen(
                         placeholder = { Text("Ej. Guzmán Inversiones S.A.") },
                         singleLine = true,
                         isError = uiState.fiscalNameTouched && uiState.fiscalNameError != null,
-                        supportingText = { if (uiState.fiscalNameTouched) uiState.fiscalNameError?.let { Text(it) } },
+                        supportingText = {
+                            if (uiState.fiscalNameTouched && uiState.fiscalNameError != null) {
+                                Text(
+                                    text = uiState.fiscalNameError!!,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            } else {
+                                Text("Mínimo 3 caracteres")
+                            }
+                        },
                         keyboardOptions = KeyboardOptions(
                             capitalization = KeyboardCapitalization.Words,
                             imeAction = ImeAction.Done
