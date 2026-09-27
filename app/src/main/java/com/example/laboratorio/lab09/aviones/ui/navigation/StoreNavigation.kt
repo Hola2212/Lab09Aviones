@@ -53,7 +53,7 @@ fun StoreNavigation(
     viewModel: StoreViewModel = viewModel()
 ){
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val checkoutState by viewModel.checkoutUiState.collectAsStateWithLifecycle()
+    val checkoutStateFlow = viewModel.checkoutUiState.collectAsStateWithLifecycle()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
     val catalogGridState = rememberLazyGridState()
 
@@ -148,22 +148,22 @@ fun StoreNavigation(
 
             // PASO 3: Checkout
             entry<StoreNavKey.Checkout> {
-                val totalUnits = remember(uiState.orderLines) {
-                    uiState.orderLines.sumOf { it.quantity }
+                val totalUnitsState = remember(uiState.orderLines) {
+                    derivedStateOf { uiState.orderLines.sumOf { it.quantity } }
                 }
                 val totalCents = remember(uiState.orderLines, uiState.books) {
                     calculateOrderTotalCents(uiState.books, uiState.orderLines)
                 }
 
-                val confirmEnabled by remember(checkoutState, totalUnits) {
+                val confirmEnabled by remember{
                     derivedStateOf {
-                        checkoutState.isFormCorrect && totalUnits > 0
+                        checkoutStateFlow.value.isFormCorrect && totalUnitsState.value > 0
                     }
                 }
 
                 CheckoutScreen(
-                    uiState = checkoutState,
-                    orderUnits = totalUnits,
+                    uiState = checkoutStateFlow.value,
+                    orderUnits = totalUnitsState.value,
                     totalCents = totalCents,
                     onNameChange = viewModel::onNameChange,
                     onPhoneChange = viewModel::onPhoneChange,
