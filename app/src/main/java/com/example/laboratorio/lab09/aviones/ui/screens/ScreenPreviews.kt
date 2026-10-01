@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.model.Profile
 import com.example.laboratorio.lab09.aviones.ui.theme.Lab09AvionesTheme
+import com.example.laboratorio.lab09.aviones.ui.state.CheckoutUiState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 
 private val fakeBook = Book(id = "b1", name = "Producto de prueba", description = "Descripción larga de prueba", priceCents = 9900, stock=10, imageUrl = "https://picsum.photos/seed/preview/400/400", profileId = "p1")
@@ -50,6 +51,28 @@ fun BookDetailScreenPreview() {
             onOpenProfile = {},
             onAddToOrder = {},
             onBack = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun CheckoutScreenPreview() {
+    var checkoutState by remember { mutableStateOf(CheckoutUiState()) }
+    Lab09AvionesTheme {
+        CheckoutScreen(
+            uiState = checkoutState,
+            orderUnits = 3,
+            totalCents = 6750,
+            onNameChange = { checkoutState = checkoutState.copy(name = it, nameTouched = true) },
+            onPhoneChange = { checkoutState = checkoutState.copy(phone = it, phoneTouched = true) },
+            onBillingTypeChange = { checkoutState = checkoutState.copy(billingType = it) },
+            onNitChange = { checkoutState = checkoutState.copy(nit = it, nitTouched = true) },
+            onFiscalNameChange = { checkoutState = checkoutState.copy(fiscalName = it, fiscalNameTouched = true) },
+            onPayMethodChange = { checkoutState = checkoutState.copy(payMethod = it) },
+            confirmEnabled = checkoutState.isFormCorrect,
+            onConfirmClick = {},
+            onBackClick = {}
         )
     }
 }
