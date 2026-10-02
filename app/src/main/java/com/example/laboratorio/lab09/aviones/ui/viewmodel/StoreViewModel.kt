@@ -18,6 +18,8 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import com.example.laboratorio.lab09.aviones.model.OrderLine
+import com.example.laboratorio.lab09.aviones.ui.data.OrderLineEntity
 import kotlinx.coroutines.launch
 import com.example.laboratorio.lab09.aviones.ui.data.FavoriteEntity
 import com.example.laboratorio.lab09.aviones.ui.data.StoreDatabase
@@ -52,9 +54,13 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
 
     val uiState: StateFlow<StoreUiState> = combine(
         _uiState,
-        dao.observeFavorites()
-    ) { memory, favorites ->
-        memory.copy(favoriteBookIds = favorites.map { it.bookId }.toSet())
+        dao.observeFavorites(),
+        dao.observeOrderLines()
+    ) { memory, favorites, lines ->
+        memory.copy(
+            favoriteBookIds = favorites.map { it.bookId }.toSet(),
+            orderLines = lines.map { OrderLine(bookId = it.bookId, quantity = it.quantity) }
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), _uiState.value)
 
     private fun generateCatalog():List<Book>{
@@ -145,37 +151,38 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun addBookToOrder(bookId: String, increment: Int = 1) {
-        _uiState.update { current ->
-            when (val result = addToOrder(current.books, current.orderLines, bookId, increment)) {
-                is OrderUpdateResult.Success -> current.copy(
-                    orderLines = result.updatedOrder,
-                    orderError = null,
-                    orderConfirmation = "Se agregó $increment unidad(es) al pedido."
-                )
-                is OrderUpdateResult.Rejected -> current.copy(
-                    orderError = result.reason,
-                    orderConfirmation = null
-                )
+        val current = uiState.value
+        when (val result = addToOrder(current.books, current.orderLines, bookId, increment)) {
+            is OrderUpdateResult.Rejected -> {
+                // Rechazada: se muestra el motivo y NO se escribe nada en Room.
+                _uiState.update { it.copy(orderError = result.reason, orderConfirmation = null) }
+            }
+            is OrderUpdateResult.Success -> {
+                _uiState.update {
+                    it.copy(
+                        orderError = null,
+                        orderConfirmation = "Se agregó $increment unidad(es) al pedido."
+                    )
+                }
+                val line = result.updatedOrder.first { it.bookId == bookId }
+                viewModelScope.launch {
+                    dao.upsertOrderLine(OrderLineEntity(line.bookId, line.quantity))
+                }
             }
         }
     }
     fun decreaseOrderQuantity(bookId: String) {
-        _uiState.update { current ->
-            current.copy(
-                orderLines = applyDecrease(current.orderLines, bookId),
-                orderError = null,
-                orderConfirmation = null
-            )
+        val newOrder = applyDecrease(uiState.value.orderLines, bookId)
+        val newLine = newOrder.firstOrNull { it.bookId == bookId }
+        _uiState.update { it.copy(orderError = null, orderConfirmation = null) }
+        viewModelScope.launch {
+            if (newLine == null) dao.deleteOrderLine(bookId)   // llegó a 0
+            else dao.upsertOrderLine(OrderLineEntity(newLine.bookId, newLine.quantity))
         }
     }
     fun removeBookFromOrder(bookId: String) {
-        _uiState.update { current ->
-            current.copy(
-                orderLines = removeFromOrder(current.orderLines, bookId),
-                orderError = null,
-                orderConfirmation = null
-            )
-        }
+        _uiState.update { it.copy(orderError = null, orderConfirmation = null) }
+        viewModelScope.launch { dao.deleteOrderLine(bookId) }
     }
     fun clearOrderFeedback() {
         _uiState.update { it.copy(orderError = null, orderConfirmation = null) }
@@ -262,7 +269,7 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
     // PASO 4: Confirmación de Orden, Recibo inmutable y Reinicio del Pedido
     fun confirmOrder() {
         val currentState = _checkoutUiState.value
-        val currentOrderLines = _uiState.value.orderLines
+        val currentOrderLines = uiState.value.orderLines
         val totalUnits = currentOrderLines.sumOf { it.quantity }
 
         if (currentState.isFormCorrect && totalUnits > 0) {
@@ -271,7 +278,7 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
 
             // Calcular Total en centavos
             val totalCents = currentOrderLines.sumOf { line ->
-                val book = _uiState.value.books.find { it.id == line.bookId }
+                val book = uiState.value.books.find { it.id == line.bookId }
                 (book?.priceCents ?: 0) * line.quantity
             }
 
@@ -290,7 +297,7 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
             _lastReceipt.value = receipt
 
             // Vaciar el pedido a 0 unidades y reiniciar el formulario
-            _uiState.update { it.copy(orderLines = emptyList()) }
+            viewModelScope.launch { dao.clearOrder() }
             _checkoutUiState.value = CheckoutUiState()
         }
     }
