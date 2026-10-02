@@ -12,6 +12,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import com.example.laboratorio.lab09.aviones.ui.data.FavoriteEntity
+import com.example.laboratorio.lab09.aviones.ui.data.StoreDatabase
 import kotlin.random.Random
 import com.example.laboratorio.lab09.aviones.model.OrderReceipt
 import com.example.laboratorio.lab09.aviones.model.validateFiscalName
@@ -29,7 +38,8 @@ import com.example.laboratorio.lab09.aviones.ui.state.PayMethod
 //Fecha: 5/9/2026
 //Fecha de modificacion: 15/9/2026
 
-class StoreViewModel: ViewModel(){
+class StoreViewModel(app: Application) : AndroidViewModel(app) {
+    private val dao = StoreDatabase.get(app).dao()
     private val profiles = BooksRepository.profiles
     private val initialBooks= BooksRepository.books
     private val catalogBooks = generateCatalog()
@@ -40,7 +50,12 @@ class StoreViewModel: ViewModel(){
         )
     )
 
-    val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<StoreUiState> = combine(
+        _uiState,
+        dao.observeFavorites()
+    ) { memory, favorites ->
+        memory.copy(favoriteBookIds = favorites.map { it.bookId }.toSet())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), _uiState.value)
 
     private fun generateCatalog():List<Book>{
         val random =Random(20260915)
@@ -119,17 +134,13 @@ class StoreViewModel: ViewModel(){
         return initialBooks + generatedBooks
 
     }
-
-
-
     fun changeFavorite(bookId: String) {
-        _uiState.update { currentState ->
-            val newFavorites = if (currentState.favoriteBookIds.contains(bookId)) {
-                currentState.favoriteBookIds - bookId
+        viewModelScope.launch {
+            if (bookId in uiState.value.favoriteBookIds) {
+                dao.deleteFavorite(bookId)
             } else {
-                currentState.favoriteBookIds + bookId
+                dao.upsertFavorite(FavoriteEntity(bookId))
             }
-            currentState.copy(favoriteBookIds = newFavorites)
         }
     }
 
