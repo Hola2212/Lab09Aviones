@@ -32,6 +32,8 @@ import com.example.laboratorio.lab09.aviones.model.validatePhoneNumber
 import com.example.laboratorio.lab09.aviones.ui.state.BillingType
 import com.example.laboratorio.lab09.aviones.ui.state.CheckoutUiState
 import com.example.laboratorio.lab09.aviones.ui.state.PayMethod
+import com.example.laboratorio.lab09.aviones.ui.data.StorePreferences
+import kotlinx.coroutines.flow.map
 
 
 // En este código usamos chatGPT con el fin de poder colocar descripción de los libros y generar los titulos y los subjects
@@ -45,6 +47,7 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
     private val profiles = BooksRepository.profiles
     private val initialBooks= BooksRepository.books
     private val catalogBooks = generateCatalog()
+    private val storePreferences = StorePreferences(app.applicationContext)
     private val _uiState = MutableStateFlow(
         StoreUiState(
             books = catalogBooks,
@@ -55,9 +58,22 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
     val uiState: StateFlow<StoreUiState> = combine(
         _uiState,
         dao.observeFavorites(),
-        dao.observeOrderLines()
-    ) { memory, favorites, lines ->
+        dao.observeOrderLines(),
+        storePreferences.catalogOrderFlow
+    ) { memory, favorites, lines, order ->
+        val query = memory.searchQuery
+        val filtered = if (query.isBlank()) {
+            memory.books
+        } else {
+            memory.books.filter { it.name.contains(query, ignoreCase = true) }
+        }
+        val sortedBooks = when (order.lowercase()) {
+            "price" -> filtered.sortedBy { it.priceCents }
+            else -> filtered.sortedBy { it.name }
+        }
+
         memory.copy(
+            books = sortedBooks,
             favoriteBookIds = favorites.map { it.bookId }.toSet(),
             orderLines = lines.map { OrderLine(bookId = it.bookId, quantity = it.quantity) }
         )
@@ -299,6 +315,21 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
             // Vaciar el pedido a 0 unidades y reiniciar el formulario
             viewModelScope.launch { dao.clearOrder() }
             _checkoutUiState.value = CheckoutUiState()
+        }
+    }
+    // Flujo expuesto para la UI
+    val catalogOrder: StateFlow<String> = uiState.map { _uiState.value.searchQuery}
+
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = "NAME"
+        )
+
+    // Función para cambiar la preferencia desde la UI
+    fun setCatalogOrder(order: String) {
+        viewModelScope.launch {
+            storePreferences.saveCatalogOrder(order)
         }
     }
 }

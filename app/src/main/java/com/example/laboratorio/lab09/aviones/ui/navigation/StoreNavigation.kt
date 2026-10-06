@@ -53,6 +53,7 @@ fun StoreNavigation(
     viewModel: StoreViewModel = viewModel()
 ){
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val catalogOrder by viewModel.catalogOrder.collectAsStateWithLifecycle()
     val checkoutStateFlow = viewModel.checkoutUiState.collectAsStateWithLifecycle()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
     val catalogGridState = rememberLazyGridState()
@@ -84,6 +85,8 @@ fun StoreNavigation(
                     orderUnits = uiState.totalOrderUnits,
                     favoriteBookIds = uiState.favoriteBookIds,
                     searchQuery = uiState.searchQuery,
+                    catalogOrder = catalogOrder,
+                    onCatalogOrderChange = viewModel::setCatalogOrder,
                     gridState = catalogGridState,
                     onQueryChange = viewModel::onQueryChange,
                     onBookClick = { bookId -> backStack.add(StoreNavKey.Detail(bookId)) },

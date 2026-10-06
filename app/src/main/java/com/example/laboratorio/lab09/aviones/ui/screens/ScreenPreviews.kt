@@ -27,6 +27,8 @@ fun CatalogScreenPreview() {
             orderUnits = 0,
             favoriteBookIds = favorites,
             searchQuery = "",
+            catalogOrder = "NAME",
+            onCatalogOrderChange = {},
             gridState = gridState,
             onQueryChange = {},
             onBookClick = {},

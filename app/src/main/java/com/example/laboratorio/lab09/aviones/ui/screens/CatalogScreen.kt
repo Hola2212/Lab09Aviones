@@ -40,6 +40,7 @@ import android.util.Log
 import androidx.compose.runtime.DisposableEffect
 import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilterChip
 /**
  * Pantalla de Catálogo — puramente presentacional (Paso 3).
  *
@@ -56,8 +57,10 @@ fun CatalogScreen(
     orderUnits: Int,
     favoriteBookIds: Set<String>,
     searchQuery: String,
+    catalogOrder: String,
     gridState: LazyGridState,
     onQueryChange: (String) -> Unit,
+    onCatalogOrderChange: (String) -> Unit,
     onBookClick: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -98,9 +101,30 @@ fun CatalogScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Selector de ordenamiento (DataStore)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Orden:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    FilterChip(
+                        selected = catalogOrder == "NAME",
+                        onClick = { onCatalogOrderChange("NAME") },
+                        label = { Text("Nombre") }
+                    )
+                    FilterChip(
+                        selected = catalogOrder == "PRICE",
+                        onClick = { onCatalogOrderChange("PRICE") },
+                        label = { Text("Precio") }
+                    )
+                }
+
                 TextButton(onClick = onOpenOrder) {
                     Text(if (orderUnits > 0) "Pedido · $orderUnits" else "Ver mi pedido")
                 }
