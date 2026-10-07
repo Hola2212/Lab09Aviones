@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.laboratorio.lab09.aviones.model.OrderReceipt
 import com.example.laboratorio.lab09.aviones.model.formatQuetzales
 import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
 import com.example.laboratorio.lab09.aviones.ui.state.BillingType
@@ -25,11 +26,10 @@ import com.example.laboratorio.lab09.aviones.ui.viewmodel.StoreViewModel
 
 @Composable
 fun ConfirmationScreen(
-    viewModel: StoreViewModel,
+    receipt: OrderReceipt?,
     onReturnToCatalog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val receipt by viewModel.lastReceipt.collectAsStateWithLifecycle()
 
     ScreenScaffold(
         title = "Confirmación",
@@ -78,6 +78,7 @@ fun ConfirmationScreen(
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
+
 
                 Button(
                     onClick = onReturnToCatalog,

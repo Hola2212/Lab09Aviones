@@ -12,8 +12,21 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.laboratorio.lab09.aviones.model.CatalogOrder
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import com.example.laboratorio.lab09.aviones.model.OrderLine
+import com.example.laboratorio.lab09.aviones.ui.data.OrderLineEntity
+import kotlinx.coroutines.launch
+import com.example.laboratorio.lab09.aviones.ui.data.FavoriteEntity
+import com.example.laboratorio.lab09.aviones.ui.data.StoreDatabase
 import kotlin.random.Random
 import com.example.laboratorio.lab09.aviones.model.OrderReceipt
+import com.example.laboratorio.lab09.aviones.model.sortBooks
 import com.example.laboratorio.lab09.aviones.model.validateFiscalName
 import com.example.laboratorio.lab09.aviones.model.validateName
 import com.example.laboratorio.lab09.aviones.model.validateNit
@@ -21,6 +34,8 @@ import com.example.laboratorio.lab09.aviones.model.validatePhoneNumber
 import com.example.laboratorio.lab09.aviones.ui.state.BillingType
 import com.example.laboratorio.lab09.aviones.ui.state.CheckoutUiState
 import com.example.laboratorio.lab09.aviones.ui.state.PayMethod
+import com.example.laboratorio.lab09.aviones.ui.data.StorePreferences
+import kotlinx.coroutines.flow.map
 
 
 // En este código usamos chatGPT con el fin de poder colocar descripción de los libros y generar los titulos y los subjects
@@ -29,10 +44,12 @@ import com.example.laboratorio.lab09.aviones.ui.state.PayMethod
 //Fecha: 5/9/2026
 //Fecha de modificacion: 15/9/2026
 
-class StoreViewModel: ViewModel(){
+class StoreViewModel(app: Application) : AndroidViewModel(app) {
+    private val dao = StoreDatabase.get(app).dao()
     private val profiles = BooksRepository.profiles
     private val initialBooks= BooksRepository.books
     private val catalogBooks = generateCatalog()
+    private val storePreferences = StorePreferences(app.applicationContext)
     private val _uiState = MutableStateFlow(
         StoreUiState(
             books = catalogBooks,
@@ -40,7 +57,21 @@ class StoreViewModel: ViewModel(){
         )
     )
 
-    val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<StoreUiState> = combine(
+        _uiState,
+        dao.observeFavorites(),
+        dao.observeOrderLines(),
+        storePreferences.catalogOrderFlow
+    ) { memory, favorites, lines, order ->
+
+        memory.copy(
+            books = sortBooks (memory.books, order),
+            favoriteBookIds = favorites.map { it.bookId }.toSet(),
+            orderLines = lines.map { OrderLine(bookId = it.bookId, quantity = it.quantity) },
+            catalogOrder = order,
+            isLoaded = true
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), _uiState.value)
 
     private fun generateCatalog():List<Book>{
         val random =Random(20260915)
@@ -119,52 +150,49 @@ class StoreViewModel: ViewModel(){
         return initialBooks + generatedBooks
 
     }
-
-
-
     fun changeFavorite(bookId: String) {
-        _uiState.update { currentState ->
-            val newFavorites = if (currentState.favoriteBookIds.contains(bookId)) {
-                currentState.favoriteBookIds - bookId
+        viewModelScope.launch {
+            if (bookId in uiState.value.favoriteBookIds) {
+                dao.deleteFavorite(bookId)
             } else {
-                currentState.favoriteBookIds + bookId
+                dao.upsertFavorite(FavoriteEntity(bookId))
             }
-            currentState.copy(favoriteBookIds = newFavorites)
         }
     }
 
     fun addBookToOrder(bookId: String, increment: Int = 1) {
-        _uiState.update { current ->
-            when (val result = addToOrder(current.books, current.orderLines, bookId, increment)) {
-                is OrderUpdateResult.Success -> current.copy(
-                    orderLines = result.updatedOrder,
-                    orderError = null,
-                    orderConfirmation = "Se agregó $increment unidad(es) al pedido."
-                )
-                is OrderUpdateResult.Rejected -> current.copy(
-                    orderError = result.reason,
-                    orderConfirmation = null
-                )
+        val current = uiState.value
+        when (val result = addToOrder(current.books, current.orderLines, bookId, increment)) {
+            is OrderUpdateResult.Rejected -> {
+                // Rechazada: se muestra el motivo y NO se escribe nada en Room.
+                _uiState.update { it.copy(orderError = result.reason, orderConfirmation = null) }
+            }
+            is OrderUpdateResult.Success -> {
+                _uiState.update {
+                    it.copy(
+                        orderError = null,
+                        orderConfirmation = "Se agregó $increment unidad(es) al pedido."
+                    )
+                }
+                val line = result.updatedOrder.first { it.bookId == bookId }
+                viewModelScope.launch {
+                    dao.upsertOrderLine(OrderLineEntity(line.bookId, line.quantity))
+                }
             }
         }
     }
     fun decreaseOrderQuantity(bookId: String) {
-        _uiState.update { current ->
-            current.copy(
-                orderLines = applyDecrease(current.orderLines, bookId),
-                orderError = null,
-                orderConfirmation = null
-            )
+        val newOrder = applyDecrease(uiState.value.orderLines, bookId)
+        val newLine = newOrder.firstOrNull { it.bookId == bookId }
+        _uiState.update { it.copy(orderError = null, orderConfirmation = null) }
+        viewModelScope.launch {
+            if (newLine == null) dao.deleteOrderLine(bookId)   // llegó a 0
+            else dao.upsertOrderLine(OrderLineEntity(newLine.bookId, newLine.quantity))
         }
     }
     fun removeBookFromOrder(bookId: String) {
-        _uiState.update { current ->
-            current.copy(
-                orderLines = removeFromOrder(current.orderLines, bookId),
-                orderError = null,
-                orderConfirmation = null
-            )
-        }
+        _uiState.update { it.copy(orderError = null, orderConfirmation = null) }
+        viewModelScope.launch { dao.deleteOrderLine(bookId) }
     }
     fun clearOrderFeedback() {
         _uiState.update { it.copy(orderError = null, orderConfirmation = null) }
@@ -251,7 +279,7 @@ class StoreViewModel: ViewModel(){
     // PASO 4: Confirmación de Orden, Recibo inmutable y Reinicio del Pedido
     fun confirmOrder() {
         val currentState = _checkoutUiState.value
-        val currentOrderLines = _uiState.value.orderLines
+        val currentOrderLines = uiState.value.orderLines
         val totalUnits = currentOrderLines.sumOf { it.quantity }
 
         if (currentState.isFormCorrect && totalUnits > 0) {
@@ -260,7 +288,7 @@ class StoreViewModel: ViewModel(){
 
             // Calcular Total en centavos
             val totalCents = currentOrderLines.sumOf { line ->
-                val book = _uiState.value.books.find { it.id == line.bookId }
+                val book = uiState.value.books.find { it.id == line.bookId }
                 (book?.priceCents ?: 0) * line.quantity
             }
 
@@ -279,8 +307,14 @@ class StoreViewModel: ViewModel(){
             _lastReceipt.value = receipt
 
             // Vaciar el pedido a 0 unidades y reiniciar el formulario
-            _uiState.update { it.copy(orderLines = emptyList()) }
+            viewModelScope.launch { dao.clearOrder() }
             _checkoutUiState.value = CheckoutUiState()
+        }
+    }
+    // Función para cambiar la preferencia desde la UI
+    fun setCatalogOrder(order: CatalogOrder) {
+        viewModelScope.launch {
+            storePreferences.saveCatalogOrder(order.name)
         }
     }
 }

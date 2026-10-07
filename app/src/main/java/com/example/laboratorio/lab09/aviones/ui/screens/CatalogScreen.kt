@@ -40,6 +40,10 @@ import android.util.Log
 import androidx.compose.runtime.DisposableEffect
 import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.runtime.LaunchedEffect
+import com.example.laboratorio.lab09.aviones.model.CatalogOrder
+
 /**
  * Pantalla de Catálogo — puramente presentacional (Paso 3).
  *
@@ -56,14 +60,22 @@ fun CatalogScreen(
     orderUnits: Int,
     favoriteBookIds: Set<String>,
     searchQuery: String,
+    catalogOrder: CatalogOrder,
     gridState: LazyGridState,
     onQueryChange: (String) -> Unit,
+    onCatalogOrderChange: (CatalogOrder) -> Unit,
     onBookClick: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     modifier: Modifier = Modifier,
     onOpenOrder: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val handleOrderChange: (CatalogOrder)-> Unit ={newOrder ->
+        if (newOrder != catalogOrder){
+            onCatalogOrderChange(newOrder)
+            scope.launch { gridState.scrollToItem(0) }
+        }
+    }
     val handleQueryChange: (String) -> Unit = { newQuery ->
         onQueryChange(newQuery)
         scope.launch {
@@ -98,9 +110,30 @@ fun CatalogScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Selector de ordenamiento (DataStore)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Orden:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    FilterChip(
+                        selected = catalogOrder == CatalogOrder.NAME,
+                        onClick = { handleOrderChange(CatalogOrder.NAME) },
+                        label = { Text("Nombre") }
+                    )
+                    FilterChip(
+                        selected = catalogOrder == CatalogOrder.PRICE,
+                        onClick = { handleOrderChange(CatalogOrder.PRICE) },
+                        label = { Text("Precio") }
+                    )
+                }
+
                 TextButton(onClick = onOpenOrder) {
                     Text(if (orderUnits > 0) "Pedido · $orderUnits" else "Ver mi pedido")
                 }
