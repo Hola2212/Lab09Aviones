@@ -42,6 +42,8 @@ import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.runtime.LaunchedEffect
+import com.example.laboratorio.lab09.aviones.model.CatalogOrder
+
 /**
  * Pantalla de Catálogo — puramente presentacional (Paso 3).
  *
@@ -58,18 +60,21 @@ fun CatalogScreen(
     orderUnits: Int,
     favoriteBookIds: Set<String>,
     searchQuery: String,
-    catalogOrder: String,
+    catalogOrder: CatalogOrder,
     gridState: LazyGridState,
     onQueryChange: (String) -> Unit,
-    onCatalogOrderChange: (String) -> Unit,
+    onCatalogOrderChange: (CatalogOrder) -> Unit,
     onBookClick: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     modifier: Modifier = Modifier,
     onOpenOrder: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    LaunchedEffect(catalogOrder) {
-        gridState.scrollToItem(0)
+    val handleOrderChange: (CatalogOrder)-> Unit ={newOrder ->
+        if (newOrder != catalogOrder){
+            onCatalogOrderChange(newOrder)
+            scope.launch { gridState.scrollToItem(0) }
+        }
     }
     val handleQueryChange: (String) -> Unit = { newQuery ->
         onQueryChange(newQuery)
@@ -118,13 +123,13 @@ fun CatalogScreen(
                         style = MaterialTheme.typography.bodySmall
                     )
                     FilterChip(
-                        selected = catalogOrder == "NAME",
-                        onClick = { onCatalogOrderChange("NAME") },
+                        selected = catalogOrder == CatalogOrder.NAME,
+                        onClick = { handleOrderChange(CatalogOrder.NAME) },
                         label = { Text("Nombre") }
                     )
                     FilterChip(
-                        selected = catalogOrder == "PRICE",
-                        onClick = { onCatalogOrderChange("PRICE") },
+                        selected = catalogOrder == CatalogOrder.PRICE,
+                        onClick = { handleOrderChange(CatalogOrder.PRICE) },
                         label = { Text("Precio") }
                     )
                 }

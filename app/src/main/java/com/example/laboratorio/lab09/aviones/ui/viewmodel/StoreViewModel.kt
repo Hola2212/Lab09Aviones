@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.update
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.laboratorio.lab09.aviones.model.CatalogOrder
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -25,6 +26,7 @@ import com.example.laboratorio.lab09.aviones.ui.data.FavoriteEntity
 import com.example.laboratorio.lab09.aviones.ui.data.StoreDatabase
 import kotlin.random.Random
 import com.example.laboratorio.lab09.aviones.model.OrderReceipt
+import com.example.laboratorio.lab09.aviones.model.sortBooks
 import com.example.laboratorio.lab09.aviones.model.validateFiscalName
 import com.example.laboratorio.lab09.aviones.model.validateName
 import com.example.laboratorio.lab09.aviones.model.validateNit
@@ -61,21 +63,13 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
         dao.observeOrderLines(),
         storePreferences.catalogOrderFlow
     ) { memory, favorites, lines, order ->
-        val query = memory.searchQuery
-        val filtered = if (query.isBlank()) {
-            memory.books
-        } else {
-            memory.books.filter { it.name.contains(query, ignoreCase = true) }
-        }
-        val sortedBooks = when (order.lowercase()) {
-            "price" -> filtered.sortedBy { it.priceCents }
-            else -> filtered.sortedBy { it.name }
-        }
 
         memory.copy(
-            books = sortedBooks,
+            books = sortBooks (memory.books, order),
             favoriteBookIds = favorites.map { it.bookId }.toSet(),
-            orderLines = lines.map { OrderLine(bookId = it.bookId, quantity = it.quantity) }
+            orderLines = lines.map { OrderLine(bookId = it.bookId, quantity = it.quantity) },
+            catalogOrder = order,
+            isLoaded = true
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), _uiState.value)
 
@@ -317,17 +311,10 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
             _checkoutUiState.value = CheckoutUiState()
         }
     }
-    // Flujo expuesto para la UI
-    val catalogOrder: StateFlow<String> = storePreferences.catalogOrderFlow
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = "NAME"
-        )
     // Función para cambiar la preferencia desde la UI
-    fun setCatalogOrder(order: String) {
+    fun setCatalogOrder(order: CatalogOrder) {
         viewModelScope.launch {
-            storePreferences.saveCatalogOrder(order)
+            storePreferences.saveCatalogOrder(order.name)
         }
     }
 }

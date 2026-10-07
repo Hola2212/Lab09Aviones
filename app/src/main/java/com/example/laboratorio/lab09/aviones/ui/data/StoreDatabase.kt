@@ -13,14 +13,19 @@ import androidx.sqlite.driver.AndroidSQLiteDriver
 abstract class StoreDatabase : RoomDatabase() {
     abstract fun dao(): StoreDao
     companion object {
+        @Volatile
         private var instance: StoreDatabase? = null
         fun get(context: Context): StoreDatabase =
-            instance ?: Room.databaseBuilder<StoreDatabase>(
-                context.applicationContext,
-                "store.db"
-            )
-                .setDriver(AndroidSQLiteDriver())
-                .build()
-                .also { instance = it }
+
+            // se utilizó Claude en esta línea de código, ya que al momento de calificarlo indicó que había un error de muchas sesiones abirtas, por lo que convenia sincronizarlas
+            instance ?: synchronized(this) {
+                instance ?: Room.databaseBuilder<StoreDatabase>(
+                    context.applicationContext,
+                    "store.db"
+                )
+                    .setDriver(AndroidSQLiteDriver())
+                    .build()
+                    .also { instance = it }
+            }
     }
 }

@@ -1,6 +1,7 @@
 package com.example.laboratorio.lab09.aviones.ui.state
 
 import com.example.laboratorio.lab09.aviones.model.Book
+import com.example.laboratorio.lab09.aviones.model.CatalogOrder
 import com.example.laboratorio.lab09.aviones.model.Profile
 import com.example.laboratorio.lab09.aviones.model.OrderLine
 
@@ -11,7 +12,9 @@ data class StoreUiState(
     val searchQuery: String = "",
     val orderLines: List<OrderLine> = emptyList(),
     val orderError: String? = null,
-    val orderConfirmation : String? = null
+    val orderConfirmation: String? = null,
+    val catalogOrder: CatalogOrder = CatalogOrder.Default,
+    val isLoaded: Boolean = false
 ){
     val filteredBooks: List<Book> get() = filterBooksByQuery(books, searchQuery)
     val totalOrderUnits : Int get() = orderLines.sumOf{ it.quantity}

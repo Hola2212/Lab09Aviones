@@ -4,6 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,16 +55,20 @@ fun StoreNavigation(
     viewModel: StoreViewModel = viewModel()
 ){
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val catalogOrder by viewModel.catalogOrder.collectAsStateWithLifecycle()
+    val lastReceipt by viewModel.lastReceipt.collectAsStateWithLifecycle()
     val checkoutStateFlow = viewModel.checkoutUiState.collectAsStateWithLifecycle()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
     val catalogGridState = rememberLazyGridState()
 
     BackHandler(enabled = backStack.size > 1) { backStack.removeLastOrNull() }
 
+    if (!uiState.isLoaded){
+        Box(modifier = modifier.fillMaxSize())
+        return
+    }
     NavDisplay(
-        backStack = backStack,
-        modifier = modifier,
+        backStack=backStack,
+        modifier=modifier,
         transitionSpec = {
             // Detalle/Perfil entran deslizándose desde la derecha.
             slideInHorizontally(initialOffsetX = { it }) togetherWith
@@ -80,12 +86,12 @@ fun StoreNavigation(
         entryProvider = entryProvider {
             entry<StoreNavKey.Catalog> {
                 CatalogScreen(
-                    books = uiState.books,
+                    books = uiState.filteredBooks,
                     totalCount = uiState.books.size,
                     orderUnits = uiState.totalOrderUnits,
                     favoriteBookIds = uiState.favoriteBookIds,
                     searchQuery = uiState.searchQuery,
-                    catalogOrder = catalogOrder,
+                    catalogOrder = uiState.catalogOrder,
                     onCatalogOrderChange = viewModel::setCatalogOrder,
                     gridState = catalogGridState,
                     onQueryChange = viewModel::onQueryChange,
@@ -186,7 +192,7 @@ fun StoreNavigation(
             // PASO 4: Confirmacion y Recibo
             entry<StoreNavKey.Confirmation> {
                 ConfirmationScreen(
-                    viewModel = viewModel,
+                    receipt=lastReceipt,
                     onReturnToCatalog = {
                         while (backStack.size > 1) {
                             backStack.removeLastOrNull()

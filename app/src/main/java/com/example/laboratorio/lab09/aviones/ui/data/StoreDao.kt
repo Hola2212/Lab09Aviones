@@ -13,12 +13,6 @@ interface StoreDao {
     @Query("SELECT * FROM order_lines")
     fun observeOrderLines(): Flow<List<OrderLineEntity>>
 
-    @Query("SELECT * FROM favorites WHERE bookId = :bookId")
-    fun observeFavorite(bookId: String): Flow<FavoriteEntity?>
-
-    @Query("SELECT * FROM order_lines WHERE bookId = :bookId")
-    fun observeOrderLine(bookId: String): Flow<OrderLineEntity?>
-
     @Upsert
     suspend fun upsertFavorite(favorite: FavoriteEntity)
 
@@ -33,7 +27,4 @@ interface StoreDao {
 
     @Query("DELETE FROM order_lines")
     suspend fun clearOrder()
-
-    @Query("DELETE FROM favorites")
-    suspend fun clearFavorites()
 }
