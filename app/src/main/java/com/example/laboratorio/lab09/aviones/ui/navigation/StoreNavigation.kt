@@ -80,7 +80,7 @@ fun StoreNavigation(
         entryProvider = entryProvider {
             entry<StoreNavKey.Catalog> {
                 CatalogScreen(
-                    books = uiState.filteredBooks,
+                    books = uiState.books,
                     totalCount = uiState.books.size,
                     orderUnits = uiState.totalOrderUnits,
                     favoriteBookIds = uiState.favoriteBookIds,

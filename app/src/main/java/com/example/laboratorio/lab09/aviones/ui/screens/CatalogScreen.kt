@@ -41,6 +41,7 @@ import androidx.compose.runtime.DisposableEffect
 import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.runtime.LaunchedEffect
 /**
  * Pantalla de Catálogo — puramente presentacional (Paso 3).
  *
@@ -67,6 +68,9 @@ fun CatalogScreen(
     onOpenOrder: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    LaunchedEffect(catalogOrder) {
+        gridState.scrollToItem(0)
+    }
     val handleQueryChange: (String) -> Unit = { newQuery ->
         onQueryChange(newQuery)
         scope.launch {

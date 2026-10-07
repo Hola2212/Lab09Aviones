@@ -318,14 +318,12 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     // Flujo expuesto para la UI
-    val catalogOrder: StateFlow<String> = uiState.map { _uiState.value.searchQuery}
-
+    val catalogOrder: StateFlow<String> = storePreferences.catalogOrderFlow
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = "NAME"
         )
-
     // Función para cambiar la preferencia desde la UI
     fun setCatalogOrder(order: String) {
         viewModelScope.launch {
