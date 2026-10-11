@@ -160,6 +160,7 @@ fun StoreNavigation(
                         checkoutStateFlow.value.isFormCorrect && totalUnitsState.value > 0
                     }
                 }
+                val isSubmitting by viewModel.isSubmitting.collectAsStateWithLifecycle()
 
                 CheckoutScreen(
                     uiState = checkoutStateFlow.value,
@@ -172,9 +173,12 @@ fun StoreNavigation(
                     onFiscalNameChange = viewModel::onFiscalNameChange,
                     onPayMethodChange = viewModel::onPayMethodChange,
                     confirmEnabled = confirmEnabled,
+                    isSubmitting = isSubmitting,
                     onConfirmClick = {
-                        viewModel.confirmOrder()
-                        backStack.add(StoreNavKey.Confirmation)
+                        viewModel.confirmOrder{
+                            backStack.add(StoreNavKey.Confirmation)
+                        }
+
                     },
                     onBackClick = { backStack.removeLastOrNull() }
                 )

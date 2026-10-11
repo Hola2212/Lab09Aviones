@@ -21,6 +21,10 @@ import com.example.laboratorio.lab09.aviones.model.validatePhoneNumber
 import com.example.laboratorio.lab09.aviones.ui.state.BillingType
 import com.example.laboratorio.lab09.aviones.ui.state.CheckoutUiState
 import com.example.laboratorio.lab09.aviones.ui.state.PayMethod
+import com.example.laboratorio.lab09.aviones.ui.network.RetrofitClient
+import com.example.laboratorio.lab09.aviones.ui.state.MyOrdersUiState
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 
 
 // En este código usamos chatGPT con el fin de poder colocar descripción de los libros y generar los titulos y los subjects
@@ -28,11 +32,15 @@ import com.example.laboratorio.lab09.aviones.ui.state.PayMethod
 //IA utilizada: ChatGPT versión del 5 de septiembre del 2026
 //Fecha: 5/9/2026
 //Fecha de modificacion: 15/9/2026
+//Fecha de modificacion: 10/10/2026
 
 class StoreViewModel: ViewModel(){
     private val profiles = BooksRepository.profiles
     private val initialBooks= BooksRepository.books
     private val catalogBooks = generateCatalog()
+
+    private val _isSubmitting = MutableStateFlow(false)
+    val isSubmitting: StateFlow<Boolean> = _isSubmitting.asStateFlow()
     private val _uiState = MutableStateFlow(
         StoreUiState(
             books = catalogBooks,
@@ -248,39 +256,92 @@ class StoreViewModel: ViewModel(){
         }
     }
 
+    private val _ordersState = MutableStateFlow<MyOrdersUiState>(MyOrdersUiState.Loading)
+    val ordersState: StateFlow<MyOrdersUiState> = _ordersState.asStateFlow()
+
+    fun loadOrders() {
+        viewModelScope.launch {
+            _ordersState.value = MyOrdersUiState.Loading
+            _ordersState.value = try {
+                val fetchedOrders = RetrofitClient.apiService.getOrders()
+                if (fetchedOrders.isEmpty()) {
+                    MyOrdersUiState.Empty
+                } else {
+                    MyOrdersUiState.Success(fetchedOrders)
+                }
+            } catch (e: java.io.IOException) {
+                MyOrdersUiState.Error("Revisa tu conexión e intenta de nuevo.")
+            } catch (e: retrofit2.HttpException) {
+                MyOrdersUiState.Error("El servidor no pudo atender la solicitud.")
+            } catch (e: kotlinx.serialization.SerializationException) {
+                MyOrdersUiState.Error("Recibimos una respuesta inesperada.")
+            }
+        }
+    }
+
     // PASO 4: Confirmación de Orden, Recibo inmutable y Reinicio del Pedido
-    fun confirmOrder() {
+    fun confirmOrder(onSuccess: () -> Unit) {
         val currentState = _checkoutUiState.value
         val currentOrderLines = _uiState.value.orderLines
         val totalUnits = currentOrderLines.sumOf { it.quantity }
 
-        if (currentState.isFormCorrect && totalUnits > 0) {
-            // Generar folio secuencial (#ORD-00001)
-            val folioFormatted = String.format("#ORD-%05d", orderCounter++)
+        if (currentState.isFormCorrect && totalUnits > 0 && !_isSubmitting.value) {
+            viewModelScope.launch {
+                _isSubmitting.value = true
+                try {
+                    // 1. Mapear tus líneas de pedido al DTO que espera MockAPI
+                    val orderLinesDto = currentOrderLines.map {
+                        com.example.laboratorio.lab09.aviones.model.OrderLine(
+                            bookId = it.bookId,
+                            quantity = it.quantity
+                        )
+                    }
 
-            // Calcular Total en centavos
-            val totalCents = currentOrderLines.sumOf { line ->
-                val book = _uiState.value.books.find { it.id == line.bookId }
-                (book?.priceCents ?: 0) * line.quantity
+                    // 2. Total en centavos
+                    val totalCents = currentOrderLines.sumOf { line ->
+                        val book = _uiState.value.books.find { it.id == line.bookId }
+                        (book?.priceCents ?: 0) * line.quantity
+                    }
+
+                    // 3. Crear el objeto para el POST (sin id: MockAPI lo asigna)
+                    val newOrder = com.example.laboratorio.lab09.aviones.model.MyOrders(
+                        total = totalCents,
+                        amount = totalCents / 100,
+                        date = java.time.LocalDate.now().toString(),
+                        lines = orderLinesDto
+                    )
+
+                    // 4. Llamada a Retrofit con POST
+                    val responseOrder = com.example.laboratorio.lab09.aviones.ui.network.RetrofitClient.apiService.createOrder(newOrder)
+
+                    // 5. Recibo con el ID real devuelto por el servidor
+                    val folioFormatted = "#ORD-${responseOrder.id.padStart(5, '0')}"
+
+                    val receipt = OrderReceipt(
+                        folio = folioFormatted,
+                        clientName = currentState.name,
+                        billingType = currentState.billingType,
+                        payMethod = currentState.payMethod,
+                        totalCents = totalCents,
+                        nit = if (currentState.billingType == BillingType.NIT) currentState.nit else null,
+                        fiscalName = if (currentState.billingType == BillingType.NIT) currentState.fiscalName else null
+                    )
+
+                    _lastReceipt.value = receipt
+
+                    // 6. Vaciar el pedido y reiniciar el formulario SOLO TRAS EL ÉXITO
+                    _uiState.update { it.copy(orderLines = emptyList()) }
+                    _checkoutUiState.value = CheckoutUiState()
+
+                    onSuccess()
+
+                } catch (e: Exception) {
+                    android.util.Log.e("StoreViewModel", "Error al crear la orden", e)
+                } finally {
+                    _isSubmitting.value = false
+                }
             }
-
-            // Recibo inmutable con cliente, facturación, metodo de pago y total
-            val receipt = OrderReceipt(
-                folio = folioFormatted,
-                clientName = currentState.name,
-                billingType = currentState.billingType,
-                payMethod = currentState.payMethod,
-                totalCents = totalCents,
-                nit = if (currentState.billingType == BillingType.NIT) currentState.nit else null,
-                fiscalName = if (currentState.billingType == BillingType.NIT) currentState.fiscalName else null
-
-            )
-
-            _lastReceipt.value = receipt
-
-            // Vaciar el pedido a 0 unidades y reiniciar el formulario
-            _uiState.update { it.copy(orderLines = emptyList()) }
-            _checkoutUiState.value = CheckoutUiState()
         }
+
     }
 }
