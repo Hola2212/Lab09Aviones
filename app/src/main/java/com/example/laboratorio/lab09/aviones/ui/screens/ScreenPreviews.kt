@@ -71,7 +71,6 @@ fun CheckoutScreenPreview() {
             onFiscalNameChange = { checkoutState = checkoutState.copy(fiscalName = it, fiscalNameTouched = true) },
             onPayMethodChange = { checkoutState = checkoutState.copy(payMethod = it) },
             confirmEnabled = checkoutState.isFormCorrect,
-            isSubmitting = false,
             onConfirmClick = {},
             onBackClick = {}
         )

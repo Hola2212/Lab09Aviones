@@ -3,64 +3,83 @@ package com.example.laboratorio.lab09.aviones.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.laboratorio.lab09.aviones.ui.state.MyOrdersUiState
-
-// En este código usamos IA generativa como apoyo en el diseño del componente en Compose para resolver visualmente los estados de carga, lista, vacío y reintento.
-// Autor: Raquel Vega
-// IA utilizada: Gemini versión del 10 de octubre de 2026
+import com.example.laboratorio.lab09.aviones.model.formatOrderDate
+import com.example.laboratorio.lab09.aviones.model.formatQuetzales
+import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
+import com.example.laboratorio.lab09.aviones.ui.state.OrdersUiState
 
 @Composable
 fun MyOrdersScreen(
-    uiState: MyOrdersUiState,
+    uiState: OrdersUiState,
     onRetry: () -> Unit,
     onOrderClick: (String) -> Unit,
+    onGoToCatalog: () -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(modifier = modifier.fillMaxSize()) {
-        when (uiState) {
-            is MyOrdersUiState.Loading -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+    ScreenScaffold(
+        title = "Mis pedidos",
+        modifier = modifier,
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
             }
-            is MyOrdersUiState.Empty -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Aún no has enviado pedidos.")
-                }
-            }
-            is MyOrdersUiState.Error -> {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            when (uiState) {
+                is OrdersUiState.Loading -> CircularProgressIndicator()
+
+                is OrdersUiState.Empty -> Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(16.dp)
                 ) {
-                    Text(text = uiState.message, color = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = onRetry) {
-                        Text("Reintentar")
-                    }
+                    Text("Sin pedidos", style = MaterialTheme.typography.titleMedium)
+                    Text("Aún no has enviado pedidos.")
+                    Button(onClick = onGoToCatalog) { Text("Ir al catálogo") }
                 }
-            }
-            is MyOrdersUiState.Success -> {
-                LazyColumn(
+
+                is OrdersUiState.Error -> Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text("Sin conexión", style = MaterialTheme.typography.titleMedium)
+                    Text(uiState.message, color = MaterialTheme.colorScheme.error)
+                    Button(onClick = onRetry) { Text("Reintentar") }
+                }
+
+                is OrdersUiState.Success -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(uiState.orders) { order ->
+                    items(uiState.orders, key = { it.id }) { order ->
                         Card(
                             onClick = { onOrderClick(order.id) },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(text = "Pedido #${order.id}", style = MaterialTheme.typography.titleMedium)
-                                Text(text = "Fecha: ${order.date}")
-                                Text(text = "Total: Q${order.amount}")
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("#${order.id}", style = MaterialTheme.typography.titleMedium)
+                                    Text(formatOrderDate(order.date), style = MaterialTheme.typography.bodySmall)
+                                }
+                                Text(formatQuetzales(order.total), style = MaterialTheme.typography.titleMedium)
                             }
                         }
                     }

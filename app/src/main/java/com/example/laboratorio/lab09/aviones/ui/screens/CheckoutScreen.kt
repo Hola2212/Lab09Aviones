@@ -60,7 +60,8 @@ fun CheckoutScreen(
     onFiscalNameChange: (String) -> Unit,
     onPayMethodChange: (PayMethod) -> Unit,
     confirmEnabled: Boolean,
-    isSubmitting: Boolean,
+    isSubmitting: Boolean = false,
+    submitError: String? = null,
     onConfirmClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -236,6 +237,14 @@ fun CheckoutScreen(
                         }
                     )
                 }
+            }
+
+            if(submitError != null){
+                Text(
+                    text=submitError,
+                    style=MaterialTheme.typography.bodyMedium,
+                    color= MaterialTheme.colorScheme.error
+                )
             }
 
             Button(
