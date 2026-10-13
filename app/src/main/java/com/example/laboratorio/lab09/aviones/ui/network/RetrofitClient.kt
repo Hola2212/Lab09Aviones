@@ -10,7 +10,7 @@ import retrofit2.Retrofit
 // IA utilizada: Gemini versión del 10 de octubre de 2026
 
 object RetrofitClient {
-    private const val BASE_URL = "https://6ac7d90b75a4ce3fe7224cd6.mockapi.io/orders" //  MockAPI URL
+    private const val BASE_URL = "https://6ac7d90b75a4ce3fe7224cd6.mockapi.io/" //  MockAPI URL
 
     private val json = Json {
         ignoreUnknownKeys = true
