@@ -1,5 +1,6 @@
 package com.example.laboratorio.lab09.aviones.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.model.OrderUpdateResult
@@ -21,6 +22,17 @@ import com.example.laboratorio.lab09.aviones.model.validatePhoneNumber
 import com.example.laboratorio.lab09.aviones.ui.state.BillingType
 import com.example.laboratorio.lab09.aviones.ui.state.CheckoutUiState
 import com.example.laboratorio.lab09.aviones.ui.state.PayMethod
+import com.example.laboratorio.lab09.aviones.ui.network.RetrofitClient
+import androidx.lifecycle.viewModelScope
+import com.example.laboratorio.lab09.aviones.model.OrderDto
+import com.example.laboratorio.lab09.aviones.model.OrderLineDto
+import com.example.laboratorio.lab09.aviones.model.calculateOrderTotalCents
+import com.example.laboratorio.lab09.aviones.model.nowIsUTC
+import com.example.laboratorio.lab09.aviones.ui.state.SubmitOrderState
+import kotlinx.coroutines.launch
+import kotlinx.serialization.SerializationException
+import retrofit2.HttpException
+import java.io.IOException
 
 
 // En este código usamos chatGPT con el fin de poder colocar descripción de los libros y generar los titulos y los subjects
@@ -28,11 +40,15 @@ import com.example.laboratorio.lab09.aviones.ui.state.PayMethod
 //IA utilizada: ChatGPT versión del 5 de septiembre del 2026
 //Fecha: 5/9/2026
 //Fecha de modificacion: 15/9/2026
+//Fecha de modificacion: 10/10/2026
 
 class StoreViewModel: ViewModel(){
     private val profiles = BooksRepository.profiles
     private val initialBooks= BooksRepository.books
     private val catalogBooks = generateCatalog()
+
+    private val _submitState = MutableStateFlow<SubmitOrderState>(SubmitOrderState.Idle)
+    val submitState: StateFlow<SubmitOrderState> = _submitState.asStateFlow()
     private val _uiState = MutableStateFlow(
         StoreUiState(
             books = catalogBooks,
@@ -250,37 +266,70 @@ class StoreViewModel: ViewModel(){
 
     // PASO 4: Confirmación de Orden, Recibo inmutable y Reinicio del Pedido
     fun confirmOrder() {
-        val currentState = _checkoutUiState.value
-        val currentOrderLines = _uiState.value.orderLines
-        val totalUnits = currentOrderLines.sumOf { it.quantity }
+        val checkout = _checkoutUiState.value
+        val state= _uiState.value
+        if (!checkout.isFormCorrect || state.totalOrderUnits == 0) return
+        if (_submitState.value is SubmitOrderState.Submitting) return
 
-        if (currentState.isFormCorrect && totalUnits > 0) {
-            // Generar folio secuencial (#ORD-00001)
-            val folioFormatted = String.format("#ORD-%05d", orderCounter++)
-
-            // Calcular Total en centavos
-            val totalCents = currentOrderLines.sumOf { line ->
-                val book = _uiState.value.books.find { it.id == line.bookId }
-                (book?.priceCents ?: 0) * line.quantity
+        _submitState.value = SubmitOrderState.Submitting
+        viewModelScope.launch{
+            val totalCents = calculateOrderTotalCents(state.books, state.orderLines)
+            val lines = state.orderLines.mapNotNull { line ->
+                state.books.firstOrNull { it.id == line.bookId }?.let { book ->
+                    OrderLineDto(
+                        productId = book.id,
+                        name = book.name,
+                        price = book.priceCents,
+                        quantity = line.quantity
+                    )
+                }
             }
-
-            // Recibo inmutable con cliente, facturación, metodo de pago y total
-            val receipt = OrderReceipt(
-                folio = folioFormatted,
-                clientName = currentState.name,
-                billingType = currentState.billingType,
-                payMethod = currentState.payMethod,
-                totalCents = totalCents,
-                nit = if (currentState.billingType == BillingType.NIT) currentState.nit else null,
-                fiscalName = if (currentState.billingType == BillingType.NIT) currentState.fiscalName else null
-
+            val request = OrderDto(
+                total = totalCents,
+                amount = state.totalOrderUnits,
+                date = nowIsUTC(),
+                lines = lines
             )
-
-            _lastReceipt.value = receipt
-
-            // Vaciar el pedido a 0 unidades y reiniciar el formulario
-            _uiState.update { it.copy(orderLines = emptyList()) }
-            _checkoutUiState.value = CheckoutUiState()
+            try {
+                val saved = RetrofitClient.apiService.createOrder(request)
+                _lastReceipt.value = OrderReceipt(
+                    folio = "#ORD-${saved.id.padStart(5, '0')}",
+                    clientName = checkout.name,
+                    billingType = checkout.billingType,
+                    payMethod = checkout.payMethod,
+                    totalCents = totalCents,
+                    nit = if (checkout.billingType == BillingType.NIT) checkout.nit else null,
+                    fiscalName = if (checkout.billingType == BillingType.NIT) checkout.fiscalName else null
+                )
+                // Solo tras la respuesta del servidor se vacía el pedido y el formulario.
+                _uiState.update { it.copy(orderLines = emptyList()) }
+                _checkoutUiState.value = CheckoutUiState()
+                _submitState.value = SubmitOrderState.Sent
+            } catch (e: IOException) {
+                Log.e("StoreViewModel", "Sin conexión al enviar", e)
+                _submitState.value = SubmitOrderState.Failed(
+                    "No pudimos enviar tu pedido. Revisa tu conexión."
+                )
+            } catch (e: HttpException) {
+                Log.e("StoreViewModel", "HTTP ${e.code()} al enviar", e)
+                _submitState.value = SubmitOrderState.Failed(
+                    "El servidor no pudo recibir tu pedido. Intenta de nuevo."
+                )
+            } catch (e: SerializationException) {
+                Log.e("StoreViewModel", "JSON inesperado al enviar", e)
+                _submitState.value = SubmitOrderState.Failed(
+                    "Recibimos una respuesta inesperada del servidor."
+                )
+            }
         }
     }
+
+    fun onOrderSentHandled() {
+        if (_submitState.value is SubmitOrderState.Sent) _submitState.value = SubmitOrderState.Idle
+    }
+
+    fun dismissSubmitError() {
+        if (_submitState.value is SubmitOrderState.Failed) _submitState.value = SubmitOrderState.Idle
+    }
+
 }
