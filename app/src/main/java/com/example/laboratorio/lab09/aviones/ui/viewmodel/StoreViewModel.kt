@@ -47,10 +47,6 @@ import kotlinx.serialization.SerializationException
 import retrofit2.HttpException
 import java.io.IOException
 
-import com.example.laboratorio.lab09.aviones.ui.data.CatalogSeeder
-import com.google.firebase.auth.FirebaseAuth
-import kotlinx.coroutines.CancellationException
-
 
 // En este código usamos chatGPT con el fin de poder colocar descripción de los libros y generar los titulos y los subjects
 //Autor: Abigail Escobar
@@ -66,40 +62,6 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
     private val initialBooks= BooksRepository.books
     private val catalogBooks = generateCatalog()
     private val storePreferences = StorePreferences(app.applicationContext)
-
-
-    private val _canSeedCatalog = MutableStateFlow(true)
-    val canSeedCatalog: StateFlow<Boolean> = _canSeedCatalog.asStateFlow()
-
-    private val _seedMessage = MutableStateFlow("")
-    val seedMessage: StateFlow<String> = _seedMessage.asStateFlow()
-
-    fun seedCatalog() {
-        if (!_canSeedCatalog.value) return
-
-        if (FirebaseAuth.getInstance().currentUser == null) {
-            _seedMessage.value =
-                "La sesión todavía no está lista. Espera unos segundos."
-            return
-        }
-
-        _canSeedCatalog.value = false
-        _seedMessage.value = "Cargando los 500 productos…"
-
-        viewModelScope.launch {
-            try {
-                CatalogSeeder.seed(catalogBooks)
-                _seedMessage.value =
-                    "Los cinco lotes fueron confirmados. Verifica Firebase Console."
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: Exception) {
-                Log.e("CatalogSeeder", "La carga se detuvo.", exception)
-                _seedMessage.value =
-                    "La carga se detuvo. Revisa Logcat y Firestore antes de reintentar."
-            }
-        }
-    }
 
     private val _submitState = MutableStateFlow<SubmitOrderState>(SubmitOrderState.Idle)
     val submitState: StateFlow<SubmitOrderState> = _submitState.asStateFlow()
