@@ -44,6 +44,9 @@ import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
 import com.example.laboratorio.lab09.aviones.ui.state.BillingType
 import com.example.laboratorio.lab09.aviones.ui.state.CheckoutUiState
 import com.example.laboratorio.lab09.aviones.ui.state.PayMethod
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 
 @Composable
 fun CheckoutScreen(
@@ -57,6 +60,8 @@ fun CheckoutScreen(
     onFiscalNameChange: (String) -> Unit,
     onPayMethodChange: (PayMethod) -> Unit,
     confirmEnabled: Boolean,
+    isSubmitting: Boolean = false,
+    submitError: String? = null,
     onConfirmClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -234,22 +239,39 @@ fun CheckoutScreen(
                 }
             }
 
-            Button(
-                onClick = onConfirmClick,
-                enabled = confirmEnabled,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Confirmar pedido (Total ${formatQuetzales(totalCents)})")
+            if(submitError != null){
+                Text(
+                    text=submitError,
+                    style=MaterialTheme.typography.bodyMedium,
+                    color= MaterialTheme.colorScheme.error
+                )
             }
 
-            if (!confirmEnabled) {
+            Button(
+                onClick = onConfirmClick,
+                enabled = confirmEnabled && !isSubmitting, // Se bloquea si el formulario no es válido o si ya está enviando
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Enviando pedido...")
+                } else {
+                    Text("Confirmar pedido (Total ${formatQuetzales(totalCents)})")
+                }
+            }
+
+            if (!confirmEnabled && !isSubmitting) {
                 Text(
                     text = "Completa los campos obligatorios para continuar.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
             Spacer(Modifier.height(8.dp))
         }
     }

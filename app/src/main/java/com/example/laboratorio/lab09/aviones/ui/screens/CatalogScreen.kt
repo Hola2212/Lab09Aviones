@@ -67,7 +67,8 @@ fun CatalogScreen(
     onBookClick: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     modifier: Modifier = Modifier,
-    onOpenOrder: () -> Unit
+    onOpenOrder: () -> Unit,
+    onOpenMyOrders: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val handleOrderChange: (CatalogOrder)-> Unit ={newOrder ->
@@ -112,6 +113,7 @@ fun CatalogScreen(
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
+
             ) {
                 // Selector de ordenamiento (DataStore)
                 Row(
@@ -133,9 +135,11 @@ fun CatalogScreen(
                         label = { Text("Precio") }
                     )
                 }
-
-                TextButton(onClick = onOpenOrder) {
-                    Text(if (orderUnits > 0) "Pedido · $orderUnits" else "Ver mi pedido")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onOpenOrder) {
+                        Text(if (orderUnits > 0) "Pedido · $orderUnits" else "Ver mi pedido")
+                    }
+                    TextButton(onClick = onOpenMyOrders) { Text("Mis pedidos") }
                 }
             }
             OutlinedTextField(
