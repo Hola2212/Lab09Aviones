@@ -34,6 +34,12 @@ import com.example.laboratorio.lab09.aviones.ui.viewmodel.OrdersViewModel
 import com.example.laboratorio.lab09.aviones.ui.viewmodel.StoreViewModel
 import kotlinx.serialization.Serializable
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.unit.dp
+
 
 @Serializable
 sealed interface StoreNavKey : NavKey {
@@ -69,6 +75,9 @@ fun StoreNavigation(
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
     val catalogGridState = rememberLazyGridState()
 
+    val canSeedCatalog by viewModel.canSeedCatalog.collectAsStateWithLifecycle()
+    val seedMessage by viewModel.seedMessage.collectAsStateWithLifecycle()
+
     BackHandler(enabled = backStack.size > 1) { backStack.removeLastOrNull() }
 
     // El ViewModel solo publica el estado; la navegación la decide la raíz.
@@ -102,26 +111,45 @@ fun StoreNavigation(
         },
         entryProvider = entryProvider {
             entry<StoreNavKey.Catalog> {
-                CatalogScreen(
-                    books = uiState.filteredBooks,
-                    totalCount = uiState.books.size,
-                    orderUnits = uiState.totalOrderUnits,
-                    favoriteBookIds = uiState.favoriteBookIds,
-                    searchQuery = uiState.searchQuery,
-                    catalogOrder = uiState.catalogOrder,
-                    onCatalogOrderChange = viewModel::setCatalogOrder,
-                    gridState = catalogGridState,
-                    onQueryChange = viewModel::onQueryChange,
-                    onBookClick = { bookId -> backStack.add(StoreNavKey.Detail(bookId)) },
-                    onToggleFavorite = viewModel::changeFavorite,
-                    onOpenOrder = { backStack.add(StoreNavKey.Order) },
-                    onOpenMyOrders = {
-                        // El evento (toque) dispara la carga: un pedido recién enviado aparece
-                        // y rotar no repite la solicitud.
-                        ordersViewModel.loadOrders()
-                        backStack.add(StoreNavKey.MyOrders)
+                Column(modifier = Modifier.fillMaxSize()) {
+                    TextButton(
+                        onClick = viewModel::seedCatalog,
+                        enabled = canSeedCatalog
+                    ) {
+                        Text("Cargar catálogo en Firebase (temporal)")
                     }
-                )
+
+                    if (seedMessage.isNotBlank()) {
+                        Text(
+                            text = seedMessage,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+
+                    CatalogScreen(
+                        modifier = Modifier.weight(1f),
+                        books = uiState.filteredBooks,
+                        totalCount = uiState.books.size,
+                        orderUnits = uiState.totalOrderUnits,
+                        favoriteBookIds = uiState.favoriteBookIds,
+                        searchQuery = uiState.searchQuery,
+                        catalogOrder = uiState.catalogOrder,
+                        onCatalogOrderChange = viewModel::setCatalogOrder,
+                        gridState = catalogGridState,
+                        onQueryChange = viewModel::onQueryChange,
+                        onBookClick = { bookId ->
+                            backStack.add(StoreNavKey.Detail(bookId))
+                        },
+                        onToggleFavorite = viewModel::changeFavorite,
+                        onOpenOrder = {
+                            backStack.add(StoreNavKey.Order)
+                        },
+                        onOpenMyOrders = {
+                            ordersViewModel.loadOrders()
+                            backStack.add(StoreNavKey.MyOrders)
+                        }
+                    )
+                }
             }
 
             entry<StoreNavKey.Detail> { key ->
