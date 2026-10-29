@@ -59,8 +59,8 @@ sealed interface StoreNavKey : NavKey {
 @Composable
 fun StoreNavigation(
     modifier: Modifier = Modifier,
-    viewModel: StoreViewModel = viewModel(),
-    ordersViewModel: OrdersViewModel = viewModel()
+    viewModel: StoreViewModel = viewModel(factory = StoreViewModel.Factory),
+    ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lastReceipt by viewModel.lastReceipt.collectAsStateWithLifecycle()
@@ -77,10 +77,6 @@ fun StoreNavigation(
             backStack.add(StoreNavKey.Confirmation)
             viewModel.onOrderSentHandled()
         }
-    }
-    if (!uiState.isLoaded){
-        Box(modifier = modifier.fillMaxSize())
-        return
     }
 
     NavDisplay(
@@ -122,7 +118,10 @@ fun StoreNavigation(
                     onOpenMyOrders = {
                         ordersViewModel.loadOrders()
                         backStack.add(StoreNavKey.MyOrders)
-                    }
+                    },
+                    isLoading = uiState.isCatalogLoading,
+                    errorMessage = uiState.catalogErrorMessage,
+                    onRetry = viewModel::retryCatalog
                 )
             }
 

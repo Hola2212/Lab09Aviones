@@ -68,7 +68,10 @@ fun CatalogScreen(
     onToggleFavorite: (String) -> Unit,
     modifier: Modifier = Modifier,
     onOpenOrder: () -> Unit,
-    onOpenMyOrders: () -> Unit = {}
+    onOpenMyOrders: () -> Unit = {},
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onRetry: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val handleOrderChange: (CatalogOrder)-> Unit ={newOrder ->
@@ -102,87 +105,131 @@ fun CatalogScreen(
             }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-        ) {
-            Row(
+        if (isLoading && books.isEmpty()) {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-
+                    .padding(padding)
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center
             ) {
-                // Selector de ordenamiento (DataStore)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator()
+                    Text("Cargando catálogo...", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        } else if (errorMessage != null && books.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Text("Sin conexión", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    androidx.compose.material3.Button(onClick = onRetry) {
+                        Text("Reintentar")
+                    }
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+            ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Selector de ordenamiento (DataStore)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Orden:",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        FilterChip(
+                            selected = catalogOrder == CatalogOrder.NAME,
+                            onClick = { handleOrderChange(CatalogOrder.NAME) },
+                            label = { Text("Nombre") }
+                        )
+                        FilterChip(
+                            selected = catalogOrder == CatalogOrder.PRICE,
+                            onClick = { handleOrderChange(CatalogOrder.PRICE) },
+                            label = { Text("Precio") }
+                        )
+                    }
+                    TextButton(onClick = onOpenMyOrders) {
+                        Text("Mis pedidos")
+                    }
+                }
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = handleQueryChange,
+                    label = { Text("Buscar productos") },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { handleQueryChange("") }) {
+                                Icon(Icons.Filled.Clear, contentDescription = "Limpiar búsqueda")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Orden:",
+                        text = "${books.size} de $totalCount productos",
                         style = MaterialTheme.typography.bodySmall
                     )
-                    FilterChip(
-                        selected = catalogOrder == CatalogOrder.NAME,
-                        onClick = { handleOrderChange(CatalogOrder.NAME) },
-                        label = { Text("Nombre") }
-                    )
-                    FilterChip(
-                        selected = catalogOrder == CatalogOrder.PRICE,
-                        onClick = { handleOrderChange(CatalogOrder.PRICE) },
-                        label = { Text("Precio") }
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onOpenOrder) {
                         Text(if (orderUnits > 0) "Pedido · $orderUnits" else "Ver mi pedido")
                     }
-                    TextButton(onClick = onOpenMyOrders) { Text("Mis pedidos") }
                 }
-            }
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = handleQueryChange,
-                label = { Text("Buscar productos") },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { handleQueryChange("") }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Limpiar búsqueda")
+
+                if (books.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("No encontramos productos.")
+                            TextButton(onClick = { handleQueryChange("") }) {
+                                Text("Limpiar búsqueda")
+                            }
                         }
                     }
-                },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-
-            Text(
-                text = "${books.size} de $totalCount productos",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-
-            if (books.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("No encontramos productos.")
-                        TextButton(onClick = { handleQueryChange("") }) {
-                            Text("Limpiar búsqueda")
-                        }
-                    }
-                }
-            } else {
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
                     state = gridState,
                     contentPadding = PaddingValues(
                         start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
@@ -203,6 +250,7 @@ fun CatalogScreen(
             }
         }
     }
+}
 }
 
 // Registro de composición usado solo para el Paso 2 (comparación Column vs LazyVerticalGrid).

@@ -1,9 +1,13 @@
 package com.example.laboratorio.lab09.aviones.ui.viewmodel
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.laboratorio.lab09.aviones.ui.network.RetrofitClient
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.laboratorio.lab09.aviones.StoreApplication
+import com.example.laboratorio.lab09.aviones.data.repository.NetworkResult
+import com.example.laboratorio.lab09.aviones.data.repository.OrdersRepository
 import com.example.laboratorio.lab09.aviones.ui.state.OrderDetailUiState
 import com.example.laboratorio.lab09.aviones.ui.state.OrdersUiState
 import kotlinx.coroutines.Job
@@ -11,12 +15,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.SerializationException
-import retrofit2.HttpException
-import java.io.IOException
 
-class OrdersViewModel : ViewModel() {
-    private val api = RetrofitClient.apiService
+class OrdersViewModel(
+    private val ordersRepository: OrdersRepository
+) : ViewModel() {
 
     private val _ordersState = MutableStateFlow<OrdersUiState>(OrdersUiState.Loading)
     val ordersState: StateFlow<OrdersUiState> = _ordersState.asStateFlow()
@@ -32,19 +34,11 @@ class OrdersViewModel : ViewModel() {
         listJob?.cancel()
         listJob = viewModelScope.launch {
             _ordersState.value = OrdersUiState.Loading
-            _ordersState.value = try {
-                val orders = api.getOrders()
-                if (orders.isEmpty()) OrdersUiState.Empty else OrdersUiState.Success(orders)
-            } catch (e: IOException) {
-                Log.e("OrdersViewModel", "Sin conexión al listar", e)
-                OrdersUiState.Error("No pudimos cargar tus pedidos. Revisa tu conexión.")
-            } catch (e: HttpException) {
-                Log.e("OrdersViewModel", "HTTP ${e.code()} al listar", e)
-                if (e.code() == 404) OrdersUiState.Empty
-                else OrdersUiState.Error("El servidor no pudo atender la solicitud.")
-            } catch (e: SerializationException) {
-                Log.e("OrdersViewModel", "JSON inesperado al listar", e)
-                OrdersUiState.Error("Recibimos una respuesta inesperada.")
+            _ordersState.value = when (val result = ordersRepository.getOrders()) {
+                is NetworkResult.Success -> {
+                    if (result.data.isEmpty()) OrdersUiState.Empty else OrdersUiState.Success(result.data)
+                }
+                is NetworkResult.Error -> OrdersUiState.Error(result.message)
             }
         }
     }
@@ -53,18 +47,21 @@ class OrdersViewModel : ViewModel() {
         detailJob?.cancel()
         detailJob = viewModelScope.launch {
             _detailState.value = OrderDetailUiState.Loading
-            _detailState.value = try {
-                OrderDetailUiState.Success(api.getOrderById(id))
-            } catch (e: IOException) {
-                Log.e("OrdersViewModel", "Sin conexión en detalle", e)
-                OrderDetailUiState.Error("No pudimos cargar el pedido. Revisa tu conexión.")
-            } catch (e: HttpException) {
-                Log.e("OrdersViewModel", "HTTP ${e.code()} en detalle", e)
-                if (e.code() == 404) OrderDetailUiState.NotFound
-                else OrderDetailUiState.Error("El servidor no pudo atender la solicitud.")
-            } catch (e: SerializationException) {
-                Log.e("OrdersViewModel", "JSON inesperado en detalle", e)
-                OrderDetailUiState.Error("Recibimos una respuesta inesperada.")
+            _detailState.value = when (val result = ordersRepository.getOrderById(id)) {
+                is NetworkResult.Success -> OrderDetailUiState.Success(result.data)
+                is NetworkResult.Error -> {
+                    if (result.isNotFound) OrderDetailUiState.NotFound
+                    else OrderDetailUiState.Error(result.message)
+                }
+            }
+        }
+    }
+
+    companion object {
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val app = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as StoreApplication)
+                OrdersViewModel(ordersRepository = app.container.ordersRepository)
             }
         }
     }

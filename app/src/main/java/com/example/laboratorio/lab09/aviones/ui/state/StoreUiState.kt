@@ -2,8 +2,8 @@ package com.example.laboratorio.lab09.aviones.ui.state
 
 import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.model.CatalogOrder
-import com.example.laboratorio.lab09.aviones.model.Profile
 import com.example.laboratorio.lab09.aviones.model.OrderLine
+import com.example.laboratorio.lab09.aviones.model.Profile
 
 data class StoreUiState(
     val books: List<Book> = emptyList(),
@@ -14,10 +14,12 @@ data class StoreUiState(
     val orderError: String? = null,
     val orderConfirmation: String? = null,
     val catalogOrder: CatalogOrder = CatalogOrder.Default,
-    val isLoaded: Boolean = false
-){
+    val isLoaded: Boolean = false,
+    val isCatalogLoading: Boolean = true,
+    val catalogErrorMessage: String? = null
+) {
     val filteredBooks: List<Book> get() = filterBooksByQuery(books, searchQuery)
-    val totalOrderUnits : Int get() = orderLines.sumOf{ it.quantity}
+    val totalOrderUnits: Int get() = orderLines.sumOf { it.quantity }
     fun unitsInOrder(bookId: String): Int =
         orderLines.firstOrNull { it.bookId == bookId }?.quantity ?: 0
 }
