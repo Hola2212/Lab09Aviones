@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "971883604851",
+    "project_id": "labfinallibros",
+    "storage_bucket": "labfinallibros.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:971883604851:android:32e707ea3446ec930a3306",
+        "android_client_info": {
+          "package_name": "com.example.laboratorio.lab09.aviones"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAEMGumvfgiB4TcIjtPtRyVDUpK1tRzfa8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

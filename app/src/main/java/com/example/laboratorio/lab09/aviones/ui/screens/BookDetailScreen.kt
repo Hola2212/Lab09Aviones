@@ -32,6 +32,7 @@ import com.example.laboratorio.lab09.aviones.model.formatQuetzales
 import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
 import androidx.compose.foundation.layout.fillMaxWidth
 import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
+import androidx.compose.material3.OutlinedButton
 
 /**
  * Pantalla de Detalle — puramente presentacional (Paso 3).
@@ -52,6 +53,9 @@ fun BookDetailScreen(
     currentUnitsInOrder: Int = 0,
     orderConfirmation: String? = null,
     orderError: String? = null,
+    isReserving: Boolean = false,
+    testResult: String? = null,
+    onConcurrencyTest: () -> Unit = {},
     onToggleFavorite: () -> Unit,
     onOpenProfile: () -> Unit,
     onAddToOrder: (String) -> Unit,
@@ -119,23 +123,30 @@ fun BookDetailScreen(
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            // Muestra las existencias y cuántas unidades hay en el pedido
             Text(
-                text = "${book.stock} disponibles · ${currentUnitsInOrder} en el pedido",
+                text = if (book.stock > 0) {
+                    "${book.stock} disponibles · $currentUnitsInOrder en el pedido"
+                } else {
+                    "Agotado · $currentUnitsInOrder en el pedido"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
-            val availableStock = book.stock - currentUnitsInOrder
 
-            // Botón para agregar al pedido
             Button(
                 onClick = { onAddToOrder(book.id) },
-                enabled = availableStock > 0,
+                enabled = book.stock > 0 && !isReserving,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
             ) {
-                Text(if (availableStock > 0) "Agregar al pedido" else "Agotado / Límite alcanzado")
+                Text(
+                    when {
+                        isReserving -> "Reservando..."
+                        book.stock > 0 -> "Agregar al pedido"
+                        else -> "Agotado"
+                    }
+                )
             }
 
             orderConfirmation?.let { msg ->
@@ -149,6 +160,26 @@ fun BookDetailScreen(
                 Text(
                     text = msg,
                     color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            OutlinedButton(
+                onClick = onConcurrencyTest,
+                enabled = !isReserving,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Probar 20 reservas simultáneas")
+            }
+
+            Text(
+                text = "Las reservas exitosas se agregarán a tu pedido.",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            testResult?.let { result ->
+                Text(
+                    text = result,
                     style = MaterialTheme.typography.bodyMedium
                 )
             }

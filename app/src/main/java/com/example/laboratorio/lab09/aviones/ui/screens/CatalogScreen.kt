@@ -36,10 +36,12 @@ import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
 import kotlinx.coroutines.launch
 import com.example.laboratorio.lab09.aviones.model.formatQuetzales
-import android.util.Log
-import androidx.compose.runtime.DisposableEffect
 import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.runtime.LaunchedEffect
+import com.example.laboratorio.lab09.aviones.model.CatalogOrder
+
 /**
  * Pantalla de Catálogo — puramente presentacional (Paso 3).
  *
@@ -56,14 +58,26 @@ fun CatalogScreen(
     orderUnits: Int,
     favoriteBookIds: Set<String>,
     searchQuery: String,
+    catalogOrder: CatalogOrder,
     gridState: LazyGridState,
     onQueryChange: (String) -> Unit,
+    onCatalogOrderChange: (CatalogOrder) -> Unit,
     onBookClick: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     modifier: Modifier = Modifier,
-    onOpenOrder: () -> Unit
+    onOpenOrder: () -> Unit,
+    onOpenMyOrders: () -> Unit = {},
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onRetry: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
+    val handleOrderChange: (CatalogOrder)-> Unit ={newOrder ->
+        if (newOrder != catalogOrder){
+            onCatalogOrderChange(newOrder)
+            scope.launch { gridState.scrollToItem(0) }
+        }
+    }
     val handleQueryChange: (String) -> Unit = { newQuery ->
         onQueryChange(newQuery)
         scope.launch {
@@ -89,63 +103,145 @@ fun CatalogScreen(
             }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-        ) {
-            Row(
+        if (isLoading && books.isEmpty()) {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(padding)
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center
             ) {
-                TextButton(onClick = onOpenOrder) {
-                    Text(if (orderUnits > 0) "Pedido · $orderUnits" else "Ver mi pedido")
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator()
+                    Text("Cargando catálogo...", style = MaterialTheme.typography.bodyMedium)
                 }
             }
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = handleQueryChange,
-                label = { Text("Buscar productos") },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { handleQueryChange("") }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Limpiar búsqueda")
-                        }
-                    }
-                },
-                singleLine = true,
+        } else if (errorMessage != null && books.isEmpty()) {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-
-            Text(
-                text = "${books.size} de $totalCount productos",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-
-            if (books.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
+                    .padding(padding)
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(24.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("No encontramos productos.")
-                        TextButton(onClick = { handleQueryChange("") }) {
-                            Text("Limpiar búsqueda")
-                        }
+                    Text(
+                        "No se pudo cargar el catálogo",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    androidx.compose.material3.Button(onClick = onRetry) {
+                        Text("Reintentar")
                     }
                 }
-            } else {
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+            ) {
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(16.dp)
+                    )
 
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
+                    TextButton(onClick = onRetry) {
+                        Text("Reintentar actualización")
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Selector de ordenamiento (DataStore)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Orden:",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        FilterChip(
+                            selected = catalogOrder == CatalogOrder.NAME,
+                            onClick = { handleOrderChange(CatalogOrder.NAME) },
+                            label = { Text("Nombre") }
+                        )
+                        FilterChip(
+                            selected = catalogOrder == CatalogOrder.PRICE,
+                            onClick = { handleOrderChange(CatalogOrder.PRICE) },
+                            label = { Text("Precio") }
+                        )
+                    }
+                    TextButton(onClick = onOpenMyOrders) {
+                        Text("Mis pedidos")
+                    }
+                }
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = handleQueryChange,
+                    label = { Text("Buscar productos") },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { handleQueryChange("") }) {
+                                Icon(Icons.Filled.Clear, contentDescription = "Limpiar búsqueda")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${books.size} de $totalCount productos",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    TextButton(onClick = onOpenOrder) {
+                        Text(if (orderUnits > 0) "Pedido · $orderUnits" else "Ver mi pedido")
+                    }
+                }
+
+                if (books.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("No encontramos productos.")
+                            TextButton(onClick = { handleQueryChange("") }) {
+                                Text("Limpiar búsqueda")
+                            }
+                        }
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
                     state = gridState,
                     contentPadding = PaddingValues(
                         start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
@@ -167,11 +263,8 @@ fun CatalogScreen(
         }
     }
 }
+}
 
-// Registro de composición usado solo para el Paso 2 (comparación Column vs LazyVerticalGrid).
-// Se deja el mecanismo en el código como evidencia, pero desactivado: la guía pide
-// retirar o desactivar estos logs una vez capturadas las observaciones de Logcat.
-private const val ENABLE_CATALOG_PROBE_LOGGING = false
 
 @Composable
 private fun BookCatalogItem(
@@ -181,17 +274,7 @@ private fun BookCatalogItem(
     onToggleFavorite: () -> Unit,
     modifier: Modifier=Modifier
 ) {
-    DisposableEffect(book.id) {
-        if (ENABLE_CATALOG_PROBE_LOGGING) {
-            Log.d("CatalogProbe", "ENTER id=${book.id}")
-        }
 
-        onDispose {
-            if (ENABLE_CATALOG_PROBE_LOGGING) {
-                Log.d("CatalogProbe", "EXIT id=${book.id}")
-            }
-        }
-    }
     Card(
         onClick = onClick,
         modifier = modifier

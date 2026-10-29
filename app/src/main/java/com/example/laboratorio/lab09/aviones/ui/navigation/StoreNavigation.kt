@@ -4,9 +4,14 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -17,30 +22,34 @@ import androidx.navigation3.ui.NavDisplay
 import com.example.laboratorio.lab09.aviones.model.calculateOrderTotalCents
 import com.example.laboratorio.lab09.aviones.ui.screens.BookDetailScreen
 import com.example.laboratorio.lab09.aviones.ui.screens.CatalogScreen
+import com.example.laboratorio.lab09.aviones.ui.screens.CheckoutScreen
+import com.example.laboratorio.lab09.aviones.ui.screens.ConfirmationScreen
+import com.example.laboratorio.lab09.aviones.ui.screens.MyOrdersScreen
+import com.example.laboratorio.lab09.aviones.ui.screens.OrderDetailScreen
+import com.example.laboratorio.lab09.aviones.ui.screens.OrderLineDisplay
+import com.example.laboratorio.lab09.aviones.ui.screens.OrderScreen
 import com.example.laboratorio.lab09.aviones.ui.screens.ProfileScreen
+import com.example.laboratorio.lab09.aviones.ui.state.SubmitOrderState
+import com.example.laboratorio.lab09.aviones.ui.viewmodel.OrdersViewModel
 import com.example.laboratorio.lab09.aviones.ui.viewmodel.StoreViewModel
 import kotlinx.serialization.Serializable
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import com.example.laboratorio.lab09.aviones.ui.screens.OrderScreen
-import com.example.laboratorio.lab09.aviones.ui.screens.OrderLineDisplay
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.remember
-import com.example.laboratorio.lab09.aviones.ui.screens.ConfirmationScreen
-import com.example.laboratorio.lab09.aviones.ui.screens.CheckoutScreen
 
 
 @Serializable
-sealed interface StoreNavKey: NavKey {
+sealed interface StoreNavKey : NavKey {
 
     @Serializable
     data object Checkout : StoreNavKey
     @Serializable
     data object Confirmation : StoreNavKey
-
     @Serializable
     data object Order : StoreNavKey
     @Serializable
     data object Catalog : StoreNavKey
+    @Serializable
+    data object MyOrders : StoreNavKey
+    @Serializable
+    data class OrderDetail(val orderId: String) : StoreNavKey
     @Serializable
     data class Detail(val bookId: String) : StoreNavKey
     @Serializable
@@ -50,14 +59,28 @@ sealed interface StoreNavKey: NavKey {
 @Composable
 fun StoreNavigation(
     modifier: Modifier = Modifier,
-    viewModel: StoreViewModel = viewModel()
-){
+    viewModel: StoreViewModel = viewModel(factory = StoreViewModel.Factory),
+    ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModel.Factory)
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val lastReceipt by viewModel.lastReceipt.collectAsStateWithLifecycle()
     val checkoutStateFlow = viewModel.checkoutUiState.collectAsStateWithLifecycle()
+    val submitState by viewModel.submitState.collectAsStateWithLifecycle()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
     val catalogGridState = rememberLazyGridState()
+    val reservingIds by viewModel.reservingBookIds.collectAsStateWithLifecycle()
+    val concurrencyTestResults by
+    viewModel.concurrencyTestResults.collectAsStateWithLifecycle()
 
     BackHandler(enabled = backStack.size > 1) { backStack.removeLastOrNull() }
+
+    // El ViewModel solo publica el estado; la navegación la decide la raíz.
+    LaunchedEffect(submitState) {
+        if (submitState is SubmitOrderState.Sent) {
+            backStack.add(StoreNavKey.Confirmation)
+            viewModel.onOrderSentHandled()
+        }
+    }
 
     NavDisplay(
         backStack = backStack,
@@ -84,11 +107,24 @@ fun StoreNavigation(
                     orderUnits = uiState.totalOrderUnits,
                     favoriteBookIds = uiState.favoriteBookIds,
                     searchQuery = uiState.searchQuery,
+                    catalogOrder = uiState.catalogOrder,
+                    onCatalogOrderChange = viewModel::setCatalogOrder,
                     gridState = catalogGridState,
                     onQueryChange = viewModel::onQueryChange,
-                    onBookClick = { bookId -> backStack.add(StoreNavKey.Detail(bookId)) },
+                    onBookClick = { bookId ->
+                        backStack.add(StoreNavKey.Detail(bookId))
+                    },
                     onToggleFavorite = viewModel::changeFavorite,
-                    onOpenOrder = { backStack.add(StoreNavKey.Order) }
+                    onOpenOrder = {
+                        backStack.add(StoreNavKey.Order)
+                    },
+                    onOpenMyOrders = {
+                        ordersViewModel.loadOrders()
+                        backStack.add(StoreNavKey.MyOrders)
+                    },
+                    isLoading = uiState.isCatalogLoading,
+                    errorMessage = uiState.catalogErrorMessage,
+                    onRetry = viewModel::retryCatalog
                 )
             }
 
@@ -97,7 +133,7 @@ fun StoreNavigation(
 
                 val book = uiState.books.firstOrNull { it.id == key.bookId }
                 val profile = book?.let { current ->
-                    uiState.profiles.firstOrNull { it.id == current.profileId}
+                    uiState.profiles.firstOrNull { it.id == current.profileId }
                 }
                 val currentUnits = uiState.unitsInOrder(key.bookId)
 
@@ -108,7 +144,12 @@ fun StoreNavigation(
                     currentUnitsInOrder = currentUnits,
                     orderConfirmation = uiState.orderConfirmation,
                     orderError = uiState.orderError,
-                    onToggleFavorite = { book?.let {viewModel.changeFavorite(it.id)}},
+                    isReserving = key.bookId in reservingIds,
+                    testResult = concurrencyTestResults[key.bookId],
+                    onConcurrencyTest = {
+                        viewModel.onConcurrencyTest(key.bookId, 20)
+                    },
+                    onToggleFavorite = { book?.let { viewModel.changeFavorite(it.id) } },
                     onOpenProfile = { profile?.let { backStack.add(StoreNavKey.Profile(it.id)) } },
                     onAddToOrder = { bookId -> viewModel.addBookToOrder(bookId) },
                     onBack = { backStack.removeLastOrNull() }
@@ -122,6 +163,7 @@ fun StoreNavigation(
                     onBack = { backStack.removeLastOrNull() }
                 )
             }
+
             entry<StoreNavKey.Order> {
                 LaunchedEffect(Unit) { viewModel.clearOrderFeedback() }
 
@@ -154,8 +196,7 @@ fun StoreNavigation(
                 val totalCents = remember(uiState.orderLines, uiState.books) {
                     calculateOrderTotalCents(uiState.books, uiState.orderLines)
                 }
-
-                val confirmEnabled by remember{
+                val confirmEnabled by remember {
                     derivedStateOf {
                         checkoutStateFlow.value.isFormCorrect && totalUnitsState.value > 0
                     }
@@ -172,22 +213,55 @@ fun StoreNavigation(
                     onFiscalNameChange = viewModel::onFiscalNameChange,
                     onPayMethodChange = viewModel::onPayMethodChange,
                     confirmEnabled = confirmEnabled,
-                    onConfirmClick = {
-                        viewModel.confirmOrder()
-                        backStack.add(StoreNavKey.Confirmation)
-                    },
-                    onBackClick = { backStack.removeLastOrNull() }
+                    isSubmitting = submitState is SubmitOrderState.Submitting,
+                    submitError = (submitState as? SubmitOrderState.Failed)?.message,
+                    onConfirmClick = viewModel::confirmOrder,
+                    onBackClick = {
+                        viewModel.dismissSubmitError()
+                        backStack.removeLastOrNull()
+                    }
                 )
             }
 
             // PASO 4: Confirmacion y Recibo
             entry<StoreNavKey.Confirmation> {
                 ConfirmationScreen(
-                    viewModel = viewModel,
+                    receipt = lastReceipt,
                     onReturnToCatalog = {
                         while (backStack.size > 1) {
                             backStack.removeLastOrNull()
                         }
+                    }
+                )
+            }
+
+            entry<StoreNavKey.MyOrders> {
+                val ordersState by ordersViewModel.ordersState.collectAsStateWithLifecycle()
+                MyOrdersScreen(
+                    uiState = ordersState,
+                    onRetry = ordersViewModel::loadOrders,
+                    onOrderClick = { id ->
+                        ordersViewModel.loadOrder(id)
+                        backStack.add(StoreNavKey.OrderDetail(id))
+                    },
+                    onGoToCatalog = {
+                        while (backStack.size > 1) {
+                            backStack.removeLastOrNull()
+                        }
+                    },
+                    onBack = { backStack.removeLastOrNull() }
+                )
+            }
+
+            entry<StoreNavKey.OrderDetail> { key ->
+                val detailState by ordersViewModel.detailState.collectAsStateWithLifecycle()
+                OrderDetailScreen(
+                    uiState = detailState,
+                    onRetry = { ordersViewModel.loadOrder(key.orderId) },
+                    onBack = { backStack.removeLastOrNull() },
+                    onBackToOrders = {
+                        ordersViewModel.loadOrders()   // refresca: el pedido borrado desaparece
+                        backStack.removeLastOrNull()
                     }
                 )
             }

@@ -11,6 +11,7 @@ import com.example.laboratorio.lab09.aviones.model.Profile
 import com.example.laboratorio.lab09.aviones.ui.theme.Lab09AvionesTheme
 import com.example.laboratorio.lab09.aviones.ui.state.CheckoutUiState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import com.example.laboratorio.lab09.aviones.model.CatalogOrder
 
 private val fakeBook = Book(id = "b1", name = "Producto de prueba", description = "Descripción larga de prueba", priceCents = 9900, stock=10, imageUrl = "https://picsum.photos/seed/preview/400/400", profileId = "p1")
 private val fakeProfile = Profile(id = "p1", name = "Perfil de prueba", role = "Rol", location = "Ubicación", description = "Bio de prueba")
@@ -27,6 +28,8 @@ fun CatalogScreenPreview() {
             orderUnits = 0,
             favoriteBookIds = favorites,
             searchQuery = "",
+            catalogOrder = CatalogOrder.NAME,
+            onCatalogOrderChange = {},
             gridState = gridState,
             onQueryChange = {},
             onBookClick = {},
