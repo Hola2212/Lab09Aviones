@@ -174,9 +174,10 @@ fun CheckoutScreen(
                         singleLine = true,
                         isError = uiState.nitTouched && uiState.nitError != null,
                         supportingText = {
-                            if (uiState.nitTouched && uiState.nitError != null) {
+                            val nitError = uiState.nitError
+                            if (uiState.nitTouched && nitError != null) {
                                 Text(
-                                    text = uiState.nitError!!,
+                                    text = uiState.nitError,
                                     color = MaterialTheme.colorScheme.error
                                 )
                             } else {
@@ -202,9 +203,10 @@ fun CheckoutScreen(
                         singleLine = true,
                         isError = uiState.fiscalNameTouched && uiState.fiscalNameError != null,
                         supportingText = {
-                            if (uiState.fiscalNameTouched && uiState.fiscalNameError != null) {
+                            val fiscalNameError= uiState.fiscalNameError
+                            if (uiState.fiscalNameTouched && fiscalNameError != null) {
                                 Text(
-                                    text = uiState.fiscalNameError!!,
+                                    text = uiState.fiscalNameError,
                                     color = MaterialTheme.colorScheme.error
                                 )
                             } else {

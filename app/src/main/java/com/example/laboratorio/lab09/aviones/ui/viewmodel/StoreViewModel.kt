@@ -13,16 +13,9 @@ import com.example.laboratorio.lab09.aviones.data.repository.OrdersRepository
 import com.example.laboratorio.lab09.aviones.data.repository.UserPreferencesRepository
 import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.model.CatalogOrder
-import com.example.laboratorio.lab09.aviones.model.OrderDto
 import com.example.laboratorio.lab09.aviones.model.OrderLine
-import com.example.laboratorio.lab09.aviones.model.OrderLineDto
+import com.example.laboratorio.lab09.aviones.model.OrderItem
 import com.example.laboratorio.lab09.aviones.model.OrderReceipt
-import com.example.laboratorio.lab09.aviones.model.OrderUpdateResult
-import com.example.laboratorio.lab09.aviones.model.addToOrder
-import com.example.laboratorio.lab09.aviones.model.calculateOrderTotalCents
-import com.example.laboratorio.lab09.aviones.model.decreaseOrderQuantity as applyDecrease
-import com.example.laboratorio.lab09.aviones.model.nowIsUTC
-import com.example.laboratorio.lab09.aviones.model.removeFromOrder
 import com.example.laboratorio.lab09.aviones.model.sortBooks
 import com.example.laboratorio.lab09.aviones.model.validateFiscalName
 import com.example.laboratorio.lab09.aviones.model.validateName
@@ -34,6 +27,8 @@ import com.example.laboratorio.lab09.aviones.ui.state.PayMethod
 import com.example.laboratorio.lab09.aviones.ui.state.StoreUiState
 import com.example.laboratorio.lab09.aviones.ui.state.SubmitOrderState
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -58,6 +53,12 @@ class StoreViewModel(
     private val _catalogErrorMessage = MutableStateFlow<String?>(null)
     private val _orderError = MutableStateFlow<String?>(null)
     private val _orderConfirmation = MutableStateFlow<String?>(null)
+
+    private val _reservingBookIds = MutableStateFlow<Set<String>>(emptySet())
+    val reservingBookIds: StateFlow<Set<String>> = _reservingBookIds.asStateFlow()
+
+    private val _concurrencyTestResult = MutableStateFlow<String?>(null)
+    val concurrencyTestResult: StateFlow<String?> = _concurrencyTestResult.asStateFlow()
 
     private val _checkoutUiState = MutableStateFlow(CheckoutUiState())
     val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
@@ -172,43 +173,69 @@ class StoreViewModel(
         }
     }
 
-    fun addBookToOrder(bookId: String, increment: Int = 1) {
-        val current = uiState.value
-        when (val result = addToOrder(current.books, current.orderLines, bookId, increment)) {
-            is OrderUpdateResult.Rejected -> {
-                _orderError.value = result.reason
-                _orderConfirmation.value = null
-            }
-            is OrderUpdateResult.Success -> {
-                _orderError.value = null
-                _orderConfirmation.value = "Se agregó $increment unidad(es) al pedido."
-                val line = result.updatedOrder.first { it.bookId == bookId }
-                viewModelScope.launch {
-                    cartAndFavoritesRepository.saveOrderLine(line.bookId, line.quantity)
+    fun addBookToOrder(bookId: String) {
+        if (bookId in _reservingBookIds.value) return
+        val book = uiState.value.books.firstOrNull { it.id == bookId }
+        if (book == null) {
+            showOrderError("El producto solicitado no existe.")
+            return
+        }
+        if (book.stock <= 0) {
+            showOrderError("Este producto está agotado.")
+            return
+        }
+        _orderError.value = null
+        _orderConfirmation.value = null
+        _reservingBookIds.update { it + bookId }
+        viewModelScope.launch {
+            booksRepository.reserveUnit(bookId)
+                .onSuccess {
+                    val quantity = uiState.value.unitsInOrder(bookId) + 1
+                    cartAndFavoritesRepository.saveOrderLine(bookId, quantity)
+                    _orderConfirmation.value = "Se agregó 1 unidad al pedido."
                 }
-            }
+                .onFailure { showOrderError(it.message.orEmpty()) }
+            _reservingBookIds.update { it - bookId }
         }
     }
 
     fun decreaseOrderQuantity(bookId: String) {
-        val newOrder = applyDecrease(uiState.value.orderLines, bookId)
-        val newLine = newOrder.firstOrNull { it.bookId == bookId }
-        _orderError.value = null
-        _orderConfirmation.value = null
-        viewModelScope.launch {
-            if (newLine == null) {
-                cartAndFavoritesRepository.removeOrderLine(bookId)
-            } else {
-                cartAndFavoritesRepository.saveOrderLine(newLine.bookId, newLine.quantity)
-            }
-        }
+        val line = uiState.value.orderLines.firstOrNull { it.bookId == bookId } ?: return
+        releaseFromOrder(bookId, units = 1, remaining = line.quantity - 1)
     }
 
     fun removeBookFromOrder(bookId: String) {
+        val line = uiState.value.orderLines.firstOrNull { it.bookId == bookId } ?: return
+        releaseFromOrder(bookId, units = line.quantity, remaining = 0)
+    }
+
+    private fun releaseFromOrder(bookId: String, units: Int, remaining: Int) {
+        if (bookId in _reservingBookIds.value) return
         _orderError.value = null
         _orderConfirmation.value = null
+        _reservingBookIds.update { it + bookId }
         viewModelScope.launch {
-            cartAndFavoritesRepository.removeOrderLine(bookId)
+            booksRepository.releaseUnits(bookId, units)
+                .onSuccess { cartAndFavoritesRepository.saveOrderLine(bookId, remaining) }
+                .onFailure { showOrderError(it.message.orEmpty()) }
+            _reservingBookIds.update { it - bookId }
+        }
+    }
+
+    private fun showOrderError(message: String) {
+        _orderError.value = message
+        _orderConfirmation.value = null
+    }
+
+    fun onConcurrencyTest(bookId: String, attempts: Int) {
+        viewModelScope.launch {
+            _concurrencyTestResult.value = "Ejecutando $attempts intentos..."
+            val results = List(attempts) {
+                async { booksRepository.reserveUnit(bookId) }
+            }.awaitAll()
+            val successes = results.count { it.isSuccess }
+            _concurrencyTestResult.value =
+                "Éxitos: $successes · Rechazos: ${attempts - successes}"
         }
     }
 
@@ -295,10 +322,9 @@ class StoreViewModel(
 
         _submitState.value = SubmitOrderState.Submitting
         viewModelScope.launch {
-            val totalCents = calculateOrderTotalCents(state.books, state.orderLines)
-            val lines = state.orderLines.mapNotNull { line ->
+            val items = state.orderLines.mapNotNull { line ->
                 state.books.firstOrNull { it.id == line.bookId }?.let { book ->
-                    OrderLineDto(
+                    OrderItem(
                         productId = book.id,
                         name = book.name,
                         price = book.priceCents,
@@ -306,14 +332,8 @@ class StoreViewModel(
                     )
                 }
             }
-            val request = OrderDto(
-                total = totalCents,
-                amount = state.totalOrderUnits,
-                date = nowIsUTC(),
-                lines = lines
-            )
 
-            when (val result = ordersRepository.createOrder(request)) {
+            when (val result = ordersRepository.createOrder(items)) {
                 is NetworkResult.Success -> {
                     val saved = result.data
                     _lastReceipt.value = OrderReceipt(
@@ -321,7 +341,7 @@ class StoreViewModel(
                         clientName = checkout.name,
                         billingType = checkout.billingType,
                         payMethod = checkout.payMethod,
-                        totalCents = totalCents,
+                        totalCents = saved.total,
                         nit = if (checkout.billingType == BillingType.NIT) checkout.nit else null,
                         fiscalName = if (checkout.billingType == BillingType.NIT) checkout.fiscalName else null
                     )

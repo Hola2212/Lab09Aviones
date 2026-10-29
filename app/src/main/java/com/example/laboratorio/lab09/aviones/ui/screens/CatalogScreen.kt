@@ -36,8 +36,6 @@ import com.example.laboratorio.lab09.aviones.model.Book
 import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
 import kotlinx.coroutines.launch
 import com.example.laboratorio.lab09.aviones.model.formatQuetzales
-import android.util.Log
-import androidx.compose.runtime.DisposableEffect
 import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilterChip
@@ -253,10 +251,6 @@ fun CatalogScreen(
 }
 }
 
-// Registro de composición usado solo para el Paso 2 (comparación Column vs LazyVerticalGrid).
-// Se deja el mecanismo en el código como evidencia, pero desactivado: la guía pide
-// retirar o desactivar estos logs una vez capturadas las observaciones de Logcat.
-private const val ENABLE_CATALOG_PROBE_LOGGING = false
 
 @Composable
 private fun BookCatalogItem(
@@ -266,17 +260,7 @@ private fun BookCatalogItem(
     onToggleFavorite: () -> Unit,
     modifier: Modifier=Modifier
 ) {
-    DisposableEffect(book.id) {
-        if (ENABLE_CATALOG_PROBE_LOGGING) {
-            Log.d("CatalogProbe", "ENTER id=${book.id}")
-        }
 
-        onDispose {
-            if (ENABLE_CATALOG_PROBE_LOGGING) {
-                Log.d("CatalogProbe", "EXIT id=${book.id}")
-            }
-        }
-    }
     Card(
         onClick = onClick,
         modifier = modifier

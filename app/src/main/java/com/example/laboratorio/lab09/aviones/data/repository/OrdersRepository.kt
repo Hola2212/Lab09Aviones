@@ -1,8 +1,11 @@
 package com.example.laboratorio.lab09.aviones.data.repository
 
-import android.util.Log
-import com.example.laboratorio.lab09.aviones.model.OrderDto
+import com.example.laboratorio.lab09.aviones.model.Order
+import com.example.laboratorio.lab09.aviones.model.OrderItem
+import com.example.laboratorio.lab09.aviones.model.nowIsUTC
 import com.example.laboratorio.lab09.aviones.ui.network.OrderApiService
+import com.example.laboratorio.lab09.aviones.ui.network.OrderDto
+import com.example.laboratorio.lab09.aviones.ui.network.OrderLineDto
 import kotlinx.serialization.SerializationException
 import retrofit2.HttpException
 import java.io.IOException
@@ -13,81 +16,75 @@ sealed interface NetworkResult<out T> {
 }
 
 interface OrdersRepository {
-    suspend fun getOrders(): NetworkResult<List<OrderDto>>
-    suspend fun getOrderById(id: String): NetworkResult<OrderDto>
-    suspend fun createOrder(order: OrderDto): NetworkResult<OrderDto>
+    suspend fun getOrders(): NetworkResult<List<Order>>
+    suspend fun getOrderById(id: String): NetworkResult<Order>
+    suspend fun createOrder(items: List<OrderItem>): NetworkResult<Order>
 }
 
 class RetrofitOrdersRepository(
     private val apiService: OrderApiService
 ) : OrdersRepository {
 
-    override suspend fun getOrders(): NetworkResult<List<OrderDto>> {
-        return try {
-            val orders = apiService.getOrders()
-            NetworkResult.Success(orders)
+    override suspend fun getOrders(): NetworkResult<List<Order>> =
+        try {
+            NetworkResult.Success(apiService.getOrders().map { it.toDomain() })
         } catch (e: IOException) {
-            Log.e(TAG, "Sin conexión al listar pedidos", e)
             NetworkResult.Error("No pudimos cargar tus pedidos. Revisa tu conexión.")
         } catch (e: HttpException) {
-            Log.e(TAG, "HTTP ${e.code()} al listar pedidos", e)
             if (e.code() == 404) {
                 NetworkResult.Success(emptyList())
             } else {
                 NetworkResult.Error("El servidor no pudo atender la solicitud.")
             }
         } catch (e: SerializationException) {
-            Log.e(TAG, "JSON inesperado al listar pedidos", e)
             NetworkResult.Error("Recibimos una respuesta inesperada.")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error desconocido al listar pedidos", e)
-            NetworkResult.Error("Ocurrió un error inesperado.")
         }
-    }
 
-    override suspend fun getOrderById(id: String): NetworkResult<OrderDto> {
-        return try {
-            val order = apiService.getOrderById(id)
-            NetworkResult.Success(order)
+    override suspend fun getOrderById(id: String): NetworkResult<Order> =
+        try {
+            NetworkResult.Success(apiService.getOrderById(id).toDomain())
         } catch (e: IOException) {
-            Log.e(TAG, "Sin conexión en detalle de pedido", e)
             NetworkResult.Error("No pudimos cargar el pedido. Revisa tu conexión.")
         } catch (e: HttpException) {
-            Log.e(TAG, "HTTP ${e.code()} en detalle de pedido", e)
             if (e.code() == 404) {
                 NetworkResult.Error("Pedido no encontrado", isNotFound = true)
             } else {
                 NetworkResult.Error("El servidor no pudo atender la solicitud.")
             }
         } catch (e: SerializationException) {
-            Log.e(TAG, "JSON inesperado en detalle de pedido", e)
             NetworkResult.Error("Recibimos una respuesta inesperada.")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error desconocido en detalle de pedido", e)
-            NetworkResult.Error("Ocurrió un error inesperado.")
         }
-    }
 
-    override suspend fun createOrder(order: OrderDto): NetworkResult<OrderDto> {
+    override suspend fun createOrder(items: List<OrderItem>): NetworkResult<Order> {
+        val request = OrderDto(
+            total = items.sumOf { it.price * it.quantity },
+            amount = items.sumOf { it.quantity },
+            date = nowIsUTC(),
+            lines = items.map { it.toDto() }
+        )
         return try {
-            val created = apiService.createOrder(order)
-            NetworkResult.Success(created)
+            NetworkResult.Success(apiService.createOrder(request).toDomain())
         } catch (e: IOException) {
-            Log.e(TAG, "Sin conexión al enviar pedido", e)
             NetworkResult.Error("No pudimos enviar tu pedido. Revisa tu conexión.")
         } catch (e: HttpException) {
-            Log.e(TAG, "HTTP ${e.code()} al enviar pedido", e)
             NetworkResult.Error("El servidor no pudo recibir tu pedido. Intenta de nuevo.")
         } catch (e: SerializationException) {
-            Log.e(TAG, "JSON inesperado al enviar pedido", e)
             NetworkResult.Error("Recibimos una respuesta inesperada del servidor.")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error desconocido al enviar pedido", e)
-            NetworkResult.Error("Ocurrió un error inesperado al enviar tu pedido.")
         }
     }
-
-    private companion object {
-        const val TAG = "OrdersRepository"
-    }
 }
+
+private fun OrderDto.toDomain() = Order(
+    id = id,
+    total = total,
+    amount = amount,
+    date = date,
+    lines = lines.map { OrderItem(it.productId, it.name, it.price, it.quantity) }
+)
+
+private fun OrderItem.toDto() = OrderLineDto(
+    productId = productId,
+    name = name,
+    price = price,
+    quantity = quantity
+)

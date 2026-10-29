@@ -32,7 +32,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val booksRepository: BooksRepository by lazy {
-        FirestoreBooksRepository(FirebaseFirestore.getInstance())
+        FirestoreBooksRepository(FirebaseFirestore.getInstance(), authRepository)
     }
 
     override val cartAndFavoritesRepository: CartAndFavoritesRepository by lazy {

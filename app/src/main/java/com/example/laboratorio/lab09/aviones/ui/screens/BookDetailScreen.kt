@@ -16,6 +16,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,6 +53,9 @@ fun BookDetailScreen(
     currentUnitsInOrder: Int = 0,
     orderConfirmation: String? = null,
     orderError: String? = null,
+    isReserving: Boolean = false,
+    testResult: String? = null,
+    onConcurrencyTest: () -> Unit = {},
     onToggleFavorite: () -> Unit,
     onOpenProfile: () -> Unit,
     onAddToOrder: (String) -> Unit,
@@ -119,23 +123,30 @@ fun BookDetailScreen(
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            // Muestra las existencias y cuántas unidades hay en el pedido
             Text(
-                text = "${book.stock} disponibles · ${currentUnitsInOrder} en el pedido",
+                text = if (book.stock > 0) {
+                    "${book.stock} disponibles · $currentUnitsInOrder en el pedido"
+                } else {
+                    "Agotado · $currentUnitsInOrder en el pedido"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
-            val availableStock = book.stock - currentUnitsInOrder
 
-            // Botón para agregar al pedido
             Button(
                 onClick = { onAddToOrder(book.id) },
-                enabled = availableStock > 0,
+                enabled = book.stock > 0 && !isReserving,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
             ) {
-                Text(if (availableStock > 0) "Agregar al pedido" else "Agotado / Límite alcanzado")
+                Text(
+                    when {
+                        isReserving -> "Reservando..."
+                        book.stock > 0 -> "Agregar al pedido"
+                        else -> "Agotado"
+                    }
+                )
             }
 
             orderConfirmation?.let { msg ->
@@ -151,6 +162,16 @@ fun BookDetailScreen(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium
                 )
+            }
+
+            OutlinedButton(
+                onClick = onConcurrencyTest,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Prueba de concurrencia · 20 intentos")
+            }
+            testResult?.let { result ->
+                Text(text = result, style = MaterialTheme.typography.bodyMedium)
             }
 
             HorizontalDivider()
