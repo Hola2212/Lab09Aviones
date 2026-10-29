@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.map
 interface CartAndFavoritesRepository {
     val favoritesStream: Flow<Set<String>>
     val orderLinesStream: Flow<List<OrderLine>>
+    suspend fun getOrderQuantity(bookId: String): Int
     suspend fun toggleFavorite(bookId: String, isCurrentlyFavorite: Boolean)
     suspend fun saveOrderLine(bookId: String, quantity: Int)
     suspend fun removeOrderLine(bookId: String)
@@ -19,6 +20,10 @@ interface CartAndFavoritesRepository {
 class RoomCartAndFavoritesRepository(
     private val dao: StoreDao
 ) : CartAndFavoritesRepository {
+
+    override suspend fun getOrderQuantity(bookId: String): Int {
+        return dao.getOrderQuantity(bookId) ?: 0
+    }
 
     override val favoritesStream: Flow<Set<String>> =
         dao.observeFavorites().map { list ->

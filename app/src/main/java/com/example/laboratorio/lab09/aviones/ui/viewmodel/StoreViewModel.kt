@@ -27,8 +27,6 @@ import com.example.laboratorio.lab09.aviones.ui.state.PayMethod
 import com.example.laboratorio.lab09.aviones.ui.state.StoreUiState
 import com.example.laboratorio.lab09.aviones.ui.state.SubmitOrderState
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -39,6 +37,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import android.util.Log
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 
 class StoreViewModel(
     private val booksRepository: BooksRepository,
@@ -47,6 +48,7 @@ class StoreViewModel(
     private val ordersRepository: OrdersRepository
 ) : ViewModel() {
 
+    private var requiresOrderReview = false
     private val _searchQuery = MutableStateFlow("")
     private val _booksStream = MutableStateFlow<List<Book>>(emptyList())
     private val _isCatalogLoading = MutableStateFlow(true)
@@ -56,9 +58,6 @@ class StoreViewModel(
 
     private val _reservingBookIds = MutableStateFlow<Set<String>>(emptySet())
     val reservingBookIds: StateFlow<Set<String>> = _reservingBookIds.asStateFlow()
-
-    private val _concurrencyTestResult = MutableStateFlow<String?>(null)
-    val concurrencyTestResult: StateFlow<String?> = _concurrencyTestResult.asStateFlow()
 
     private val _checkoutUiState = MutableStateFlow(CheckoutUiState())
     val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
@@ -139,30 +138,45 @@ class StoreViewModel(
         _catalogErrorMessage.value = null
 
         catalogJob = viewModelScope.launch {
+            var receivedSnapshot = false
+
             val timeoutJob = launch {
                 delay(5_000)
-                if (_booksStream.value.isEmpty()) {
+
+                if (!receivedSnapshot) {
                     _isCatalogLoading.value = false
                     _catalogErrorMessage.value =
-                        "No pudimos conectar con el catálogo. Revisa tu conexión."
+                        "No se pudo actualizar el catálogo. " +
+                                "Revisa tu conexión e intenta nuevamente."
                 }
             }
 
-            booksRepository.getBooksStream()
-                .catch {
-                    timeoutJob.cancel()
-                    _isCatalogLoading.value = false
-                    if (_booksStream.value.isEmpty()) {
+            try {
+                booksRepository.getBooksStream()
+                    .catch { exception ->
+                        timeoutJob.cancel()
+
+                        Log.e(
+                            "StoreViewModel",
+                            "Falló la lectura del catálogo.",
+                            exception
+                        )
+
+                        _isCatalogLoading.value = false
                         _catalogErrorMessage.value =
-                            "No pudimos cargar el catálogo. Revisa tu conexión."
+                            "No se pudo actualizar el catálogo. " +
+                                    "Los datos mostrados pueden estar desactualizados."
                     }
-                }
-                .collect { books ->
-                    timeoutJob.cancel()
-                    _booksStream.value = books
-                    _isCatalogLoading.value = false
-                    _catalogErrorMessage.value = null
-                }
+                    .collect { books ->
+                        receivedSnapshot = true
+                        timeoutJob.cancel()
+                        _booksStream.value = books
+                        _isCatalogLoading.value = false
+                        _catalogErrorMessage.value = null
+                    }
+            } finally {
+                timeoutJob.cancel()
+            }
         }
     }
 
@@ -174,51 +188,97 @@ class StoreViewModel(
     }
 
     fun addBookToOrder(bookId: String) {
-        if (bookId in _reservingBookIds.value) return
-        val book = uiState.value.books.firstOrNull { it.id == bookId }
-        if (book == null) {
-            showOrderError("El producto solicitado no existe.")
-            return
-        }
-        if (book.stock <= 0) {
-            showOrderError("Este producto está agotado.")
-            return
-        }
-        _orderError.value = null
-        _orderConfirmation.value = null
-        _reservingBookIds.update { it + bookId }
-        viewModelScope.launch {
-            booksRepository.reserveUnit(bookId)
-                .onSuccess {
-                    val quantity = uiState.value.unitsInOrder(bookId) + 1
-                    cartAndFavoritesRepository.saveOrderLine(bookId, quantity)
-                    _orderConfirmation.value = "Se agregó 1 unidad al pedido."
-                }
-                .onFailure { showOrderError(it.message.orEmpty()) }
-            _reservingBookIds.update { it - bookId }
+        updateOrderQuantity(bookId) { currentQuantity ->
+            currentQuantity + 1
         }
     }
 
     fun decreaseOrderQuantity(bookId: String) {
-        val line = uiState.value.orderLines.firstOrNull { it.bookId == bookId } ?: return
-        releaseFromOrder(bookId, units = 1, remaining = line.quantity - 1)
+        updateOrderQuantity(bookId) { currentQuantity ->
+            (currentQuantity - 1).coerceAtLeast(0)
+        }
     }
 
     fun removeBookFromOrder(bookId: String) {
-        val line = uiState.value.orderLines.firstOrNull { it.bookId == bookId } ?: return
-        releaseFromOrder(bookId, units = line.quantity, remaining = 0)
+        updateOrderQuantity(bookId) { 0 }
     }
 
-    private fun releaseFromOrder(bookId: String, units: Int, remaining: Int) {
+    private fun updateOrderQuantity(
+        bookId: String,
+        calculateQuantity: (Int) -> Int
+    ) {
+        if (requiresOrderReview) {
+            showOrderError(
+                "El pedido necesita revisión por una operación incompleta. " +
+                        "No se modificarán más existencias."
+            )
+            return
+        }
+        if (_submitState.value is SubmitOrderState.Submitting) return
         if (bookId in _reservingBookIds.value) return
+
         _orderError.value = null
         _orderConfirmation.value = null
         _reservingBookIds.update { it + bookId }
+
         viewModelScope.launch {
-            booksRepository.releaseUnits(bookId, units)
-                .onSuccess { cartAndFavoritesRepository.saveOrderLine(bookId, remaining) }
-                .onFailure { showOrderError(it.message.orEmpty()) }
-            _reservingBookIds.update { it - bookId }
+            var stockChanged = false
+
+            try {
+                val currentQuantity =
+                    cartAndFavoritesRepository.getOrderQuantity(bookId)
+
+                val newQuantity = calculateQuantity(currentQuantity)
+                val difference = newQuantity - currentQuantity
+
+                if (difference == 0) return@launch
+
+                if (difference > 0) {
+                    check(difference == 1) {
+                        "Solo se puede reservar una unidad por operación."
+                    }
+                    booksRepository.reserveUnit(bookId).getOrThrow()
+                } else {
+                    booksRepository.releaseUnits(
+                        bookId = bookId,
+                        units = -difference
+                    ).getOrThrow()
+                }
+
+                stockChanged = true
+
+                cartAndFavoritesRepository.saveOrderLine(
+                    bookId = bookId,
+                    quantity = newQuantity
+                )
+
+                _orderConfirmation.value = if (difference > 0) {
+                    "Se agregó 1 unidad al pedido."
+                } else {
+                    "Se actualizó la cantidad del pedido."
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                Log.e(
+                    "StoreViewModel",
+                    "No se pudo actualizar el pedido: bookId=$bookId",
+                    exception
+                )
+                if (stockChanged) {
+                    requiresOrderReview = true
+                }
+                val message = if (stockChanged) {
+                    "Las existencias cambiaron, pero no se pudo guardar " +
+                            "el pedido. No repitas la operación sin revisar los datos."
+                } else {
+                    exception.message ?: "No se pudo actualizar el pedido."
+                }
+
+                showOrderError(message)
+            } finally {
+                _reservingBookIds.update { it - bookId }
+            }
         }
     }
 
@@ -227,17 +287,6 @@ class StoreViewModel(
         _orderConfirmation.value = null
     }
 
-    fun onConcurrencyTest(bookId: String, attempts: Int) {
-        viewModelScope.launch {
-            _concurrencyTestResult.value = "Ejecutando $attempts intentos..."
-            val results = List(attempts) {
-                async { booksRepository.reserveUnit(bookId) }
-            }.awaitAll()
-            val successes = results.count { it.isSuccess }
-            _concurrencyTestResult.value =
-                "Éxitos: $successes · Rechazos: ${attempts - successes}"
-        }
-    }
 
     fun clearOrderFeedback() {
         _orderError.value = null
@@ -315,15 +364,50 @@ class StoreViewModel(
     }
 
     fun confirmOrder() {
-        val checkout = _checkoutUiState.value
-        val state = uiState.value
-        if (!checkout.isFormCorrect || state.totalOrderUnits == 0) return
         if (_submitState.value is SubmitOrderState.Submitting) return
 
+        if (requiresOrderReview) {
+            _submitState.value = SubmitOrderState.Failed(
+                "El pedido necesita revisión por una operación incompleta."
+            )
+            return
+        }
+
+        if (_reservingBookIds.value.isNotEmpty()) {
+            _submitState.value = SubmitOrderState.Failed(
+                "Espera a que terminen las reservas antes de confirmar."
+            )
+            return
+        }
+
+        val checkout = _checkoutUiState.value
+        if (!checkout.isFormCorrect) return
+
         _submitState.value = SubmitOrderState.Submitting
+
         viewModelScope.launch {
-            val items = state.orderLines.mapNotNull { line ->
-                state.books.firstOrNull { it.id == line.bookId }?.let { book ->
+            var remoteOrderCreated = false
+
+            try {
+                val lines = cartAndFavoritesRepository.orderLinesStream.first()
+
+                check(lines.isNotEmpty()) {
+                    "El pedido está vacío."
+                }
+
+                val booksById = _booksStream.value.associateBy { it.id }
+
+                val items = lines.map { line ->
+                    check(line.quantity > 0) {
+                        "El pedido contiene una cantidad inválida."
+                    }
+
+                    val book = booksById[line.bookId]
+                        ?: error(
+                            "Un producto del pedido no está disponible en el catálogo. " +
+                                    "Revisa el pedido antes de enviarlo."
+                        )
+
                     OrderItem(
                         productId = book.id,
                         name = book.name,
@@ -331,27 +415,63 @@ class StoreViewModel(
                         quantity = line.quantity
                     )
                 }
-            }
 
-            when (val result = ordersRepository.createOrder(items)) {
-                is NetworkResult.Success -> {
-                    val saved = result.data
-                    _lastReceipt.value = OrderReceipt(
-                        folio = "#ORD-${saved.id.padStart(5, '0')}",
-                        clientName = checkout.name,
-                        billingType = checkout.billingType,
-                        payMethod = checkout.payMethod,
-                        totalCents = saved.total,
-                        nit = if (checkout.billingType == BillingType.NIT) checkout.nit else null,
-                        fiscalName = if (checkout.billingType == BillingType.NIT) checkout.fiscalName else null
-                    )
-                    cartAndFavoritesRepository.clearOrder()
-                    _checkoutUiState.value = CheckoutUiState()
-                    _submitState.value = SubmitOrderState.Sent
+                when (val result = ordersRepository.createOrder(items)) {
+                    is NetworkResult.Success -> {
+                        remoteOrderCreated = true
+                        val saved = result.data
+
+                        _lastReceipt.value = OrderReceipt(
+                            folio = "#ORD-${saved.id.padStart(5, '0')}",
+                            clientName = checkout.name,
+                            billingType = checkout.billingType,
+                            payMethod = checkout.payMethod,
+                            totalCents = saved.total,
+                            nit = if (checkout.billingType == BillingType.NIT) {
+                                checkout.nit
+                            } else {
+                                null
+                            },
+                            fiscalName = if (
+                                checkout.billingType == BillingType.NIT
+                            ) {
+                                checkout.fiscalName
+                            } else {
+                                null
+                            }
+                        )
+
+                        cartAndFavoritesRepository.clearOrder()
+                        _checkoutUiState.value = CheckoutUiState()
+                        _submitState.value = SubmitOrderState.Sent
+                    }
+
+                    is NetworkResult.Error -> {
+                        _submitState.value =
+                            SubmitOrderState.Failed(result.message)
+                    }
                 }
-                is NetworkResult.Error -> {
-                    _submitState.value = SubmitOrderState.Failed(result.message)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                Log.e(
+                    "StoreViewModel",
+                    "No se pudo completar la confirmación.",
+                    exception
+                )
+
+                if (remoteOrderCreated) {
+                    requiresOrderReview = true
                 }
+
+                _submitState.value = SubmitOrderState.Failed(
+                    if (remoteOrderCreated) {
+                        "El pedido fue enviado, pero falló la limpieza local. " +
+                                "No lo envíes nuevamente. Revisa Mis pedidos."
+                    } else {
+                        exception.message ?: "No se pudo confirmar el pedido."
+                    }
+                )
             }
         }
     }

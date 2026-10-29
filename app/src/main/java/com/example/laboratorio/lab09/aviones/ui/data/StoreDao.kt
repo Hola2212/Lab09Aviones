@@ -13,6 +13,9 @@ interface StoreDao {
     @Query("SELECT * FROM order_lines")
     fun observeOrderLines(): Flow<List<OrderLineEntity>>
 
+    @Query("SELECT quantity FROM order_lines WHERE bookId = :bookId")
+    suspend fun getOrderQuantity(bookId: String): Int?
+
     @Upsert
     suspend fun upsertFavorite(favorite: FavoriteEntity)
 

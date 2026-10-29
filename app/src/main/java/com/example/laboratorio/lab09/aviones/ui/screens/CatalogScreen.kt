@@ -130,7 +130,10 @@ fun CatalogScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.padding(24.dp)
                 ) {
-                    Text("Sin conexión", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "No se pudo cargar el catálogo",
+                        style = MaterialTheme.typography.titleMedium
+                    )
                     Text(
                         text = errorMessage,
                         color = MaterialTheme.colorScheme.error,
@@ -147,6 +150,17 @@ fun CatalogScreen(
                     .padding(padding)
                     .fillMaxSize()
             ) {
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(16.dp)
+                    )
+
+                    TextButton(onClick = onRetry) {
+                        Text("Reintentar actualización")
+                    }
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

@@ -16,7 +16,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,8 +53,6 @@ fun BookDetailScreen(
     orderConfirmation: String? = null,
     orderError: String? = null,
     isReserving: Boolean = false,
-    testResult: String? = null,
-    onConcurrencyTest: () -> Unit = {},
     onToggleFavorite: () -> Unit,
     onOpenProfile: () -> Unit,
     onAddToOrder: (String) -> Unit,
@@ -164,15 +161,6 @@ fun BookDetailScreen(
                 )
             }
 
-            OutlinedButton(
-                onClick = onConcurrencyTest,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Prueba de concurrencia · 20 intentos")
-            }
-            testResult?.let { result ->
-                Text(text = result, style = MaterialTheme.typography.bodyMedium)
-            }
 
             HorizontalDivider()
 
