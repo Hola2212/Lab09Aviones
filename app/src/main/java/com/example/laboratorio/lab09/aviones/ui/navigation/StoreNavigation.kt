@@ -69,6 +69,8 @@ fun StoreNavigation(
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
     val catalogGridState = rememberLazyGridState()
     val reservingIds by viewModel.reservingBookIds.collectAsStateWithLifecycle()
+    val concurrencyTestResults by
+    viewModel.concurrencyTestResults.collectAsStateWithLifecycle()
 
     BackHandler(enabled = backStack.size > 1) { backStack.removeLastOrNull() }
 
@@ -143,6 +145,10 @@ fun StoreNavigation(
                     orderConfirmation = uiState.orderConfirmation,
                     orderError = uiState.orderError,
                     isReserving = key.bookId in reservingIds,
+                    testResult = concurrencyTestResults[key.bookId],
+                    onConcurrencyTest = {
+                        viewModel.onConcurrencyTest(key.bookId, 20)
+                    },
                     onToggleFavorite = { book?.let { viewModel.changeFavorite(it.id) } },
                     onOpenProfile = { profile?.let { backStack.add(StoreNavKey.Profile(it.id)) } },
                     onAddToOrder = { bookId -> viewModel.addBookToOrder(bookId) },

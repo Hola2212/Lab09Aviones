@@ -32,6 +32,7 @@ import com.example.laboratorio.lab09.aviones.model.formatQuetzales
 import com.example.laboratorio.lab09.aviones.ui.components.ScreenScaffold
 import androidx.compose.foundation.layout.fillMaxWidth
 import com.example.laboratorio.lab09.aviones.ui.components.ProductImage
+import androidx.compose.material3.OutlinedButton
 
 /**
  * Pantalla de Detalle — puramente presentacional (Paso 3).
@@ -53,6 +54,8 @@ fun BookDetailScreen(
     orderConfirmation: String? = null,
     orderError: String? = null,
     isReserving: Boolean = false,
+    testResult: String? = null,
+    onConcurrencyTest: () -> Unit = {},
     onToggleFavorite: () -> Unit,
     onOpenProfile: () -> Unit,
     onAddToOrder: (String) -> Unit,
@@ -161,6 +164,25 @@ fun BookDetailScreen(
                 )
             }
 
+            OutlinedButton(
+                onClick = onConcurrencyTest,
+                enabled = !isReserving,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Probar 20 reservas simultáneas")
+            }
+
+            Text(
+                text = "Las reservas exitosas se agregarán a tu pedido.",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            testResult?.let { result ->
+                Text(
+                    text = result,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
 
             HorizontalDivider()
 

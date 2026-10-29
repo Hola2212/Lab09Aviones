@@ -40,6 +40,10 @@ import kotlinx.coroutines.launch
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
+import com.example.laboratorio.lab09.aviones.model.OutOfStockException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.supervisorScope
 
 class StoreViewModel(
     private val booksRepository: BooksRepository,
@@ -67,6 +71,11 @@ class StoreViewModel(
 
     private val _lastReceipt = MutableStateFlow<OrderReceipt?>(null)
     val lastReceipt: StateFlow<OrderReceipt?> = _lastReceipt.asStateFlow()
+    private val _concurrencyTestResults =
+        MutableStateFlow<Map<String, String>>(emptyMap())
+
+    val concurrencyTestResults: StateFlow<Map<String, String>> =
+        _concurrencyTestResults.asStateFlow()
 
     private var catalogJob: Job? = null
 
@@ -127,6 +136,111 @@ class StoreViewModel(
         SharingStarted.WhileSubscribed(5_000),
         StoreUiState(profiles = booksRepository.getProfiles())
     )
+    fun onConcurrencyTest(bookId: String, attempts: Int = 20) {
+        if (attempts !in 1..20) return
+        if (_submitState.value is SubmitOrderState.Submitting) return
+        if (bookId in _reservingBookIds.value) return
+
+        if (requiresOrderReview) {
+            showOrderError("El pedido necesita revisión antes de continuar.")
+            return
+        }
+
+        _orderError.value = null
+        _orderConfirmation.value = null
+        _reservingBookIds.update { it + bookId }
+        _concurrencyTestResults.update {
+            it + (bookId to "Ejecutando $attempts reservas simultáneas…")
+        }
+
+        viewModelScope.launch {
+            var successes = 0
+
+            try {
+                val currentQuantity =
+                    cartAndFavoritesRepository.getOrderQuantity(bookId)
+
+                check(currentQuantity in 0..(Int.MAX_VALUE - attempts)) {
+                    "La cantidad del pedido está fuera del rango permitido."
+                }
+
+                val results = supervisorScope {
+                    List(attempts) {
+                        async {
+                            try {
+                                booksRepository.reserveUnit(bookId)
+                            } catch (exception: CancellationException) {
+                                throw exception
+                            } catch (exception: Exception) {
+                                Result.failure<Unit>(exception)
+                            }
+                        }
+                    }.awaitAll()
+                }
+
+                successes = results.count { it.isSuccess }
+
+                val soldOut = results.count {
+                    it.exceptionOrNull() is OutOfStockException
+                }
+
+                val otherErrors = attempts - successes - soldOut
+
+                if (successes > 0) {
+                    cartAndFavoritesRepository.saveOrderLine(
+                        bookId = bookId,
+                        quantity = currentQuantity + successes
+                    )
+                }
+
+                results.forEach { result ->
+                    val error = result.exceptionOrNull()
+
+                    if (error != null && error !is OutOfStockException) {
+                        Log.w(
+                            "ConcurrencyTest",
+                            "Reserva rechazada: bookId=$bookId",
+                            error
+                        )
+                    }
+                }
+
+                val message =
+                    "Reservas exitosas: $successes · " +
+                            "Sin existencias: $soldOut · " +
+                            "Otros errores: $otherErrors. " +
+                            "Se agregaron $successes unidades al pedido."
+
+                _concurrencyTestResults.update {
+                    it + (bookId to message)
+                }
+
+                Log.d("ConcurrencyTest", "bookId=$bookId · $message")
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                if (successes > 0) {
+                    requiresOrderReview = true
+                }
+
+                val message = if (successes > 0) {
+                    "Se reservaron $successes unidades, pero falló " +
+                            "el guardado local. Revisa los datos antes de continuar."
+                } else {
+                    "No se pudo completar la prueba. Revisa Logcat."
+                }
+
+                _concurrencyTestResults.update {
+                    it + (bookId to message)
+                }
+
+                showOrderError(message)
+                Log.e("ConcurrencyTest", message, exception)
+            } finally {
+                _reservingBookIds.update { it - bookId }
+            }
+        }
+    }
 
     fun retryCatalog() {
         loadCatalog()
